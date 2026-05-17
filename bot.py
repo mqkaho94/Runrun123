@@ -17,6 +17,12 @@ HORSES = [
     "💨5.疾風", "🏅6.黃金戰馬", "🌊7.海嘯", "🦅8.傲空"
 ]
 
+# 🔢 名次對應的數字 Emoji 對照表
+RANK_EMOJIS = {
+    1: "1️⃣", 2: "2️⃣", 3: "3️⃣", 4: "4️⃣",
+    5: "5️⃣", 6: "6️⃣", 7: "7️⃣", 8: "8️⃣"
+}
+
 DB_FILE = 'race.db'
 
 # ================== 資料庫最佳化 (Context Manager) ==================
@@ -53,10 +59,15 @@ def update_chips(user_id, amount):
 init_db()
 
 # ================== 賽事全域變數 ==================
-current_race = None
+current_race = None    # None, "betting", "running"
 race_id = None
 race_bets = {}   
-race_odds = {}  # 儲存當期馬匹的隨機獨贏賠率
+race_odds = {}  
+
+# 🔄 限制機制全域變數
+user_bet_count = {}     
+user_refund_count = {}  
+user_actual_deduct = {} 
 
 # ================== 機器人指令處理 ==================
 @bot.message_handler(commands=['start'])
@@ -93,30 +104,32 @@ def help_cmd(message):
 
 /startrace - 開始新賽事 (自動刷新隨機賠率)
 /balance   - 查詢目前籌碼
+/refund    - 開賽前退款當局投注（每場限一次）
 
-【投注方式】
-/bet <號碼> <金額>     → 獨贏 (只中第1名，得獨贏賠率)
-/place <號碼> <金額>   → 位置 (中前3名，得獨贏的一半賠率)
-/lin <號碼1> <號碼2> <金額> → 連贏 (前兩名，不限順序，兩馬獨贏賠率相乘)
+【投注方式】（每場限投注一次）
+/bet <號碼> <金額>     → 獨贏
+/place <號碼> <金額>   → 位置
+/lin <號碼1> <號碼2> <金額> → 連贏
 
 💡 <b>下注福利：</b>金額少於 100 chips 時，實際扣除 0 金幣 (免費免單)，中獎一樣照常派發全額彩金！
-💡 支援百分比投注，例如：/bet 1 10%
 """
     bot.reply_to(message, text, parse_mode='HTML')
 
 @bot.message_handler(commands=['startrace'])
 def startrace(message):
-    global current_race, race_id, race_odds
+    global current_race, race_id, race_odds, user_bet_count, user_refund_count, user_actual_deduct
     if current_race:
         bot.reply_to(message, "⚠️ 已有賽事進行中！")
         return
 
-    current_race = True
+    current_race = "betting"  
     race_id = f"R{int(time.time())}"
     race_bets[race_id] = {}
     race_odds = {}
+    user_bet_count = {}
+    user_refund_count = {}
+    user_actual_deduct = {}
 
-    # 🎲 隨機生成 8 隻馬的獨贏賠率 (2.5 - 15.0倍)
     text = f"🏇 **第 {race_id} 場賽事開始！** 60秒後開跑 🏁\n\n"
     text += "【本局獨贏 / 位置 賠率公示】\n"
     for h in HORSES:
@@ -125,33 +138,35 @@ def startrace(message):
         race_odds[h] = win_odds  
         text += f"{h}  ➡️  獨贏: *{win_odds}x* | 位置: *{place_odds}x*\n"
         
-    text += "\n💡 連贏賠率為前兩名馬匹的獨贏賠率相乘！\n"
-    text += "\n💰 下注範例：\n/bet 1 500\n/place 3 300\n/lin 1 2 200"
+    text += "\n💡 每人每場只能投注一次！開跑前若買錯可輸入 /refund 退款重填（限一次）。\n"
+    text += "\n💰 下注範例：\n/bet 1 500"
     
     bot.reply_to(message, text, parse_mode='Markdown')
     threading.Timer(60, lambda: run_race(message.chat.id)).start()
 
-# ================== 核心：動態模擬賽馬（前三名產生即完賽結算） ==================
+# ================== 核心：動態模擬賽馬（已整合完賽數字化） ==================
 def run_race(chat_id):
-    global current_race, race_id, race_odds
+    global current_race, race_id, race_odds, race_bets
     
+    if current_race != "betting":
+        return
+
+    current_race = "running" 
     race_msg = bot.send_message(chat_id, "🏁 **鳴槍開跑！馬匹正在激烈交鋒中...** 🏁", parse_mode='Markdown')
     
     TOTAL_DISTANCE = 100.0  
     DISPLAY_LENGTH = 15     
     
-    # ⏱️ 隨機完賽時間 (10秒 - 2分鐘)
     target_times = {h: random.uniform(10.0, 120.0) for h in HORSES}
     speeds = {h: TOTAL_DISTANCE / target_times[h] for h in HORSES}
     
     current_distance = {h: 0.0 for h in HORSES}
-    finished_horses = []  # 記錄衝線順序
+    finished_horses = []  
     
     start_time = time.time()
     last_refresh_time = start_time
     
-    # 🐎 動態跑馬核心主迴圈
-    # 💡 關鍵修改：只要 finished_horses 滿 3 隻馬（冠亞季軍出爐），就自動跳出迴圈，直接結算！
+    # 🐎 動態奔跑主迴圈（前三名產生即停止動畫）
     while len(finished_horses) < 3:
         time.sleep(0.1)  
         now = time.time()
@@ -168,7 +183,6 @@ def run_race(chat_id):
                     if h not in finished_horses:
                         finished_horses.append(h)
                         
-        # 每 2.0 秒刷新一次跑道畫面
         if now - last_refresh_time >= 2.0 or len(finished_horses) >= 3:
             last_refresh_time = now
             
@@ -181,9 +195,9 @@ def run_race(chat_id):
                 if passed_display > DISPLAY_LENGTH: passed_display = DISPLAY_LENGTH
                 remaining_to_goal_display = DISPLAY_LENGTH - passed_display
                 
+                # 奔跑中依然顯示 🐎
                 track_str = "🏁 " + "_" * remaining_to_goal_display + "🐎" + "_" * passed_display
                 
-                # 💡 判斷當前衝線狀態並加上 1, 2, 3 名 Emoji
                 status_flag = ""
                 if h in finished_horses:
                     rank = finished_horses.index(h) + 1
@@ -200,15 +214,44 @@ def run_race(chat_id):
             except:
                 pass
 
-    # 💡 補全剩餘沒衝線馬匹的排名邏輯：按當前距離從大到小排序
+    # 🛑 核心修改：前三名已出，計算剩餘馬匹當下的最終大排名
     remaining_horses = [h for h in HORSES if h not in finished_horses]
-    # 依當前行進距離由大到小排序，距離一樣則隨機
     remaining_horses.sort(key=lambda h: current_distance[h], reverse=True)
-    
-    # 將剩下的馬依序加入完成名單，形成完整的 8 隻馬排名
     all_ranks = finished_horses + remaining_horses
+    
+    # 💡 重新繪製一個「定格終點、馬匹變身名次數字」的最終跑道畫面
+    final_track_text = f"🏇 **第 {race_id} 場賽事 直播結束（定格名次）** 🏁\n"
+    final_track_text += "‾" * 25 + "\n"
+    
+    for h in HORSES:
+        # 找出這隻馬在 1-8 名當中的哪一個名次
+        final_rank = all_ranks.index(h) + 1
+        rank_emoji = RANK_EMOJIS.get(final_rank, "🐎") # 變身成 1️⃣ ~ 8️⃣ 數字
+        
+        progress_ratio = current_distance[h] / TOTAL_DISTANCE
+        passed_display = int(progress_ratio * DISPLAY_LENGTH)
+        if passed_display > DISPLAY_LENGTH: passed_display = DISPLAY_LENGTH
+        remaining_to_goal_display = DISPLAY_LENGTH - passed_display
+        
+        # 💡 將原本跑道中的 "🐎" 替換成該馬匹的名次 "rank_emoji"
+        track_str = "🏁 " + "_" * remaining_to_goal_display + rank_emoji + "_" * passed_display
+        
+        status_flag = ""
+        if final_rank == 1: status_flag = " 🥇【冠軍】"
+        elif final_rank == 2: status_flag = " 🥈【亞軍】"
+        elif final_rank == 3: status_flag = " 🥉【季軍】"
+        
+        final_track_text += f"{h}{status_flag}\n`{track_str}`\n\n"
+        
+    final_track_text += "—" * 25 + f"\n🏁 賽事在 {int(time.time() - start_time)} 秒時完美結算！"
+    
+    # 更新動態跑道訊息為「數字定格版」
+    try:
+        bot.edit_message_text(final_track_text, chat_id, race_msg.message_id, parse_mode='Markdown')
+    except:
+        pass
                 
-    # 🏁 定格並公佈最終名次
+    # 🏁 公佈最終名次文字結果
     winner = all_ranks[0]
     second = all_ranks[1]
     
@@ -249,7 +292,7 @@ def run_race(chat_id):
         else:
             bot.send_message(chat_id, "壓注全空！本局沒有人中獎 💸")
     
-    # 重設當局狀態
+    # 重設全域狀態
     current_race = None
     race_odds = {}
     if race_id in race_bets:
@@ -258,15 +301,20 @@ def run_race(chat_id):
 # ================== 核心：投注邏輯處理 ==================
 @bot.message_handler(commands=['bet', 'place', 'lin'])
 def place_bet(message):
-    global current_race, race_id, race_odds
-    if not current_race:
-        bot.reply_to(message, "❌ 目前沒有賽事，請輸入 /startrace 開賽")
+    global current_race, race_id, race_odds, user_bet_count, user_actual_deduct
+    if current_race != "betting":
+        bot.reply_to(message, "❌ 目前非投注時間！")
+        return
+
+    user_id = message.from_user.id
+    
+    if user_bet_count.get(user_id, 0) >= 1:
+        bot.reply_to(message, "❌ 您本場已投注過！若想更改，請在開賽前輸入 /refund 退款後重新買一次。")
         return
 
     try:
         cmd = message.text.split()
         bet_type = cmd[0][1:]
-        user_id = message.from_user.id
         chips = get_chips(user_id)
 
         if bet_type in ["bet", "place"]:
@@ -314,11 +362,13 @@ def place_bet(message):
             return
 
         update_chips(user_id, -actual_deduct)
+        user_actual_deduct[user_id] = actual_deduct 
 
         if user_id not in race_bets[race_id]:
             race_bets[race_id][user_id] = []
         
         race_bets[race_id][user_id].append((bet_type, horses, bet_amount))
+        user_bet_count[user_id] = 1
 
         bet_name = "獨贏" if bet_type=="bet" else "位置" if bet_type=="place" else "連贏"
         show_horse = f"{horses[0]} + {horses[1]}" if isinstance(horses, list) else horses
@@ -339,11 +389,42 @@ def place_bet(message):
             f"{bet_name}賠率：{current_odds}倍\n"
             f"💰 若勝出可贏：{possible_win} 金幣"
         )
-        
         bot.reply_to(message, reply_text, parse_mode='Markdown')
 
     except Exception as e:
         bot.reply_to(message, "❌ 格式錯誤！\n範例：\n/bet 1 500\n/place 3 300\n/lin 1 2 200")
+
+# ================== 核心：退款重投邏輯 ==================
+@bot.message_handler(commands=['refund'])
+def refund_bet(message):
+    global current_race, race_id, race_bets, user_bet_count, user_refund_count, user_actual_deduct
+    
+    if current_race != "betting":
+        bot.reply_to(message, "❌ 只能在比賽開跑前（倒數 60 秒內）申請退款！")
+        return
+
+    user_id = message.from_user.id
+
+    if user_bet_count.get(user_id, 0) == 0:
+        bot.reply_to(message, "❌ 您本局根本還沒有投注，無法退款！")
+        return
+
+    if user_refund_count.get(user_id, 0) >= 1:
+        bot.reply_to(message, "❌ 抱歉，每場比賽每人最多隻能退款重新購買「一次」！")
+        return
+
+    refund_amount = user_actual_deduct.get(user_id, 0)
+    update_chips(user_id, refund_amount) 
+
+    if race_id in race_bets and user_id in race_bets[race_id]:
+        del race_bets[race_id][user_id]
+    
+    user_bet_count[user_id] = 0
+    user_refund_count[user_id] = 1
+    if user_id in user_actual_deduct:
+        del user_actual_deduct[user_id]
+
+    bot.reply_to(message, f"✅ **退款成功！** 已歸還 {refund_amount} 金幣。\n您現在可以重新進行投注。", parse_mode='Markdown')
 
 @bot.message_handler(commands=['balance'])
 def balance(message):
