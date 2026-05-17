@@ -131,38 +131,35 @@ def startrace(message):
     bot.reply_to(message, text, parse_mode='Markdown')
     threading.Timer(60, lambda: run_race(message.chat.id)).start()
 
-# ================== 核心：動態模擬賽馬（下底線跑道版） ==================
+# ================== 核心：動態模擬賽馬（前三名產生即完賽結算） ==================
 def run_race(chat_id):
     global current_race, race_id, race_odds
     
     race_msg = bot.send_message(chat_id, "🏁 **鳴槍開跑！馬匹正在激烈交鋒中...** 🏁", parse_mode='Markdown')
     
-    TOTAL_DISTANCE = 100.0  # 邏輯總長度
-    DISPLAY_LENGTH = 15     # 畫面上顯示的下底線數量
+    TOTAL_DISTANCE = 100.0  
+    DISPLAY_LENGTH = 15     
     
-    # ⏱️ 隨機為每隻馬產生 10秒 到 120秒 之間的完賽時間
+    # ⏱️ 隨機完賽時間 (10秒 - 2分鐘)
     target_times = {h: random.uniform(10.0, 120.0) for h in HORSES}
-    
-    # 計算每隻馬「每秒速度」
     speeds = {h: TOTAL_DISTANCE / target_times[h] for h in HORSES}
     
     current_distance = {h: 0.0 for h in HORSES}
-    finished_horses = []
+    finished_horses = []  # 記錄衝線順序
     
     start_time = time.time()
     last_refresh_time = start_time
     
     # 🐎 動態跑馬核心主迴圈
-    while len(finished_horses) < len(HORSES):
-        time.sleep(0.1)  # 高頻計算位置
+    # 💡 關鍵修改：只要 finished_horses 滿 3 隻馬（冠亞季軍出爐），就自動跳出迴圈，直接結算！
+    while len(finished_horses) < 3:
+        time.sleep(0.1)  
         now = time.time()
         elapsed = now - start_time
         
         for h in HORSES:
             if current_distance[h] < TOTAL_DISTANCE:
                 current_distance[h] = elapsed * speeds[h]
-                
-                # 微調隨機顛簸
                 current_distance[h] += random.uniform(-0.2, 0.2)
                 if current_distance[h] < 0: current_distance[h] = 0
                 
@@ -171,41 +168,57 @@ def run_race(chat_id):
                     if h not in finished_horses:
                         finished_horses.append(h)
                         
-        # 🛡️ 每 2.0 秒或是全完賽時，才刷新畫面
-        if now - last_refresh_time >= 2.0 or len(finished_horses) == len(HORSES):
+        # 每 2.0 秒刷新一次跑道畫面
+        if now - last_refresh_time >= 2.0 or len(finished_horses) >= 3:
             last_refresh_time = now
             
             dynamic_text = f"🏇 **第 {race_id} 場賽事 現場直播** 🏁\n"
             dynamic_text += "‾" * 25 + "\n"
             
             for h in HORSES:
-                # 等比例換算格數
                 progress_ratio = current_distance[h] / TOTAL_DISTANCE
                 passed_display = int(progress_ratio * DISPLAY_LENGTH)
                 if passed_display > DISPLAY_LENGTH: passed_display = DISPLAY_LENGTH
-                
                 remaining_to_goal_display = DISPLAY_LENGTH - passed_display
                 
-                # 💡 已將 🟩 替換為 _ （由右向左跑邏輯：🏁 終點 | 剩餘下底線 | 馬 | 已走下底線）
                 track_str = "🏁 " + "_" * remaining_to_goal_display + "🐎" + "_" * passed_display
                 
-                status_flag = " ✨衝線！" if current_distance[h] == TOTAL_DISTANCE else ""
-                dynamic_text += f"{h}{status_flag}\n`{track_str}`\n\n" # 用等寬字體包裹跑道讓版面更整齊
+                # 💡 判斷當前衝線狀態並加上 1, 2, 3 名 Emoji
+                status_flag = ""
+                if h in finished_horses:
+                    rank = finished_horses.index(h) + 1
+                    if rank == 1: status_flag = " 🥇【冠軍】"
+                    elif rank == 2: status_flag = " 🥈【亞軍】"
+                    elif rank == 3: status_flag = " 🥉【季軍】"
                 
-            dynamic_text += "—" * 25 + f"\n💨 賽事已進行：{int(elapsed)} 秒\n💨 馬匹正在由右向左全力衝刺中..."
+                dynamic_text += f"{h}{status_flag}\n`{track_str}`\n\n"
+                
+            dynamic_text += "—" * 25 + f"\n💨 賽事已進行：{int(elapsed)} 秒\n💨 頭馬正在全力衝刺中..."
             
             try:
                 bot.edit_message_text(dynamic_text, chat_id, race_msg.message_id, parse_mode='Markdown')
             except:
                 pass
-                
-    # 🏁 定格最終名次
-    winner = finished_horses[0]
-    second = finished_horses[1]
+
+    # 💡 補全剩餘沒衝線馬匹的排名邏輯：按當前距離從大到小排序
+    remaining_horses = [h for h in HORSES if h not in finished_horses]
+    # 依當前行進距離由大到小排序，距離一樣則隨機
+    remaining_horses.sort(key=lambda h: current_distance[h], reverse=True)
     
-    result = "🏆 **最終賽果名次** 🏆\n\n"
-    for i, h in enumerate(finished_horses, 1):
-        result += f"第 {i} 名：{h} (獨贏 {race_odds[h]}x)\n"
+    # 將剩下的馬依序加入完成名單，形成完整的 8 隻馬排名
+    all_ranks = finished_horses + remaining_horses
+                
+    # 🏁 定格並公佈最終名次
+    winner = all_ranks[0]
+    second = all_ranks[1]
+    
+    result = "🏆 **最終賽果名次結果** 🏆\n\n"
+    for i, h in enumerate(all_ranks, 1):
+        if i == 1: medal = "🥇"
+        elif i == 2: medal = "🥈"
+        elif i == 3: medal = "🥉"
+        else: medal = "🏁"
+        result += f"{medal} 第 {i} 名：{h} (獨贏 {race_odds[h]}x)\n"
     
     bot.send_message(chat_id, result, parse_mode='Markdown')
     
@@ -219,7 +232,7 @@ def run_race(chat_id):
             for bet_type, horses, amt in bets:
                 if bet_type == "bet" and horses == winner:
                     win_amount += int(amt * race_odds[winner])
-                elif bet_type == "place" and horses in finished_horses[:3]:
+                elif bet_type == "place" and horses in all_ranks[:3]:
                     win_amount += int(amt * (race_odds[horses] / 2))
                 elif bet_type == "lin":
                     if isinstance(horses, list) and set(horses) == set([winner, second]):
