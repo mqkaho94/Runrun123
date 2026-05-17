@@ -85,13 +85,6 @@ def get_all_registered_horses():
         c.execute("SELECT user_id, horse_name FROM users WHERE has_horse=1 AND horse_name IS NOT NULL")
         return c.fetchall()
 
-def get_all_horse_owners():
-    with sqlite3.connect(DB_FILE) as conn:
-        c = conn.cursor()
-        c.execute("SELECT user_id FROM users WHERE has_horse=1")
-        rows = c.fetchall()
-        return [row[0] for row in rows]
-
 def sync_username(user_id, username):
     if not username: return
     with sqlite3.connect(DB_FILE) as conn:
@@ -369,16 +362,18 @@ def run_race(chat_id):
         if has_winner: bot.send_message(chat_id, payout_message, parse_mode='HTML')
         else: bot.send_message(chat_id, "壓注全空！本局沒有人中獎 💸")
 
+    # ================== 🐴 馬主分紅與安慰獎邏輯（全新修正） ==================
     owner_text = "✨ <b>【本局馬主專利分紅】</b> ✨\n"
-    big_winners = [] 
     has_owner_bonus = False
-    
+    consolation_owners = [] # 儲存這局有上場且輸掉（跑 4-8 名）的馬主們
+
+    # 1. 檢查前三名（大獎分紅）
     for rank_idx in range(min(3, len(all_ranks))):
         target_horse = all_ranks[rank_idx]
         if "👑" in target_horse:
             owner_id = get_owner_by_horse_name(target_horse)
             if owner_id:
-                owner_id = int(owner_id)  
+                owner_id = int(owner_id)
                 rank_num = rank_idx + 1
                 
                 try:
@@ -398,14 +393,18 @@ def run_race(chat_id):
                     t_title = "🥉 季軍"
                 
                 update_chips(owner_id, bonus_chips)
-                big_winners.append(owner_id)
-                
                 owner_text += f"恭喜專屬馬 <b>{target_horse}</b> 榮獲{t_title}！\n馬主 <a href='tg://user?id={owner_id}'>{owner_name}</a> 獲得隨機大獎 <b>+{bonus_chips:,}</b> 金幣 💰\n"
                 has_owner_bonus = True
 
-    all_owners = get_all_horse_owners()
-    consolation_owners = [int(oid) for oid in all_owners if int(oid) not in big_winners]
-    
+    # 2. 檢查四到八名（有上場且輸掉的才發安慰獎）
+    for rank_idx in range(3, len(all_ranks)):
+        target_horse = all_ranks[rank_idx]
+        if "👑" in target_horse:
+            owner_id = get_owner_by_horse_name(target_horse)
+            if owner_id:
+                consolation_owners.append(int(owner_id))
+
+    # 3. 發放安慰獎
     if consolation_owners:
         lucky_comfort_bonus = random.randint(3000, 5000)
         consolation_mentions = []
@@ -420,7 +419,7 @@ def run_race(chat_id):
             
             consolation_mentions.append(f"<a href='tg://user?id={c_owner}'>{c_name}</a>")
             
-        owner_text += f"\n🎁 <b>【馬主同慶安慰獎】</b>\n恭喜 " + "、".join(consolation_mentions) + f" 獲得 <b>+{lucky_comfort_bonus:,}</b> 金幣 安慰獎！\n"
+        owner_text += f"\n🎁 <b>【馬主同慶安慰獎】</b>\n本局上場遺憾落敗（第4-8名）的馬主： " + "、".join(consolation_mentions) + f" 獲得 <b>+{lucky_comfort_bonus:,}</b> 金幣 安慰分紅！\n"
         has_owner_bonus = True
 
     if has_owner_bonus:
@@ -429,7 +428,7 @@ def run_race(chat_id):
     current_race, race_odds = None, {}
     if race_id in race_bets: del race_bets[race_id]
 
-# ================== 核心：投注與退款邏輯（加入格式錯誤防呆機制） ==================
+# ================== 核心：投注與退款邏輯 ==================
 @bot.message_handler(commands=['bet', 'place', 'lin'])
 def place_bet(message):
     global current_race, race_id, race_odds, user_bet_count, user_actual_deduct, current_horses
@@ -444,7 +443,6 @@ def place_bet(message):
         bot.reply_to(message, "❌ 您本場已投注過！更改請先輸入 /refund 退款。")
         return
 
-    # 定義格式錯誤提示內容
     error_help_text = (
         "❌ **投注格式錯誤！**\n\n"
         "💡 **請參考以下正確的下注範例：**\n"
@@ -467,7 +465,6 @@ def place_bet(message):
         bet_type = cmd[0][1:]
         chips = get_chips(user_id)
 
-        # 1. 解析與驗證馬匹編號
         if bet_type in ["bet", "place"]:
             if len(cmd) < 3: 
                 bot.reply_to(message, error_help_text, parse_mode='Markdown')
@@ -503,7 +500,6 @@ def place_bet(message):
                 return
             selected_horse_full = [current_horses[h1-1], current_horses[h2-1]]
 
-        # 2. 解析與驗證下注金額
         try:
             bet_amount = int(chips * int(amount_str.replace("%", "")) / 100) if "%" in amount_str else int(amount_str)
         except ValueError:
@@ -514,14 +510,13 @@ def place_bet(message):
             bot.reply_to(message, "❌ 投注失敗：下注金額必須大於 0 金幣！", parse_mode='Markdown')
             return
 
-        # 3. 100 信用額度與扣款金額計算
         credit = 100
         actual_deduct = max(0, bet_amount - credit) if bet_amount > credit else 0
         if actual_deduct > chips:
             bot.reply_to(message, f"❌ 餘額不足！扣除 100 信用額後，您還需要 {actual_deduct:,} 金幣，但您目前只有 {chips:,}。", parse_mode='Markdown')
             return
 
-        # ⚡ 優先即時扣款更新資料庫 ⚡
+        # 優先即時扣款
         update_chips(user_id, -actual_deduct)
         user_actual_deduct[user_id] = actual_deduct 
         user_bet_count[user_id] = 1
@@ -529,7 +524,6 @@ def place_bet(message):
         if user_id not in race_bets[race_id]: race_bets[race_id][user_id] = []
         race_bets[race_id][user_id].append((bet_type, selected_horse_full, bet_amount))
 
-        # 4. 整理玩法與馬匹名稱格式化輸出
         type_title = "獨贏" if bet_type == "bet" else "位置" if bet_type == "place" else "連贏"
         
         if bet_type == "lin":
@@ -544,7 +538,6 @@ def place_bet(message):
 
         potential_win = int(bet_amount * odds_val)
 
-        # 完美跟隨截圖樣式回覆
         success_msg = (
             f"✅ **{type_title}投注成功！{horse_display}**\n"
             f"**投注額：{bet_amount:,} 金幣**\n"
@@ -661,5 +654,5 @@ def help_cmd(message):
     bot.reply_to(message, text, parse_mode='HTML')
 
 # ================== 啟動服務 ==================
-print(f"🏇 {BOT_USERNAME} 全能防呆優化版已啟動！")
+print(f"🏇 {BOT_USERNAME} 已經更新：安慰獎必須為本局有上場且未進前三名的馬主才可獲得！")
 bot.infinity_polling()
