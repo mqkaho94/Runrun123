@@ -6,7 +6,7 @@ import sqlite3
 import os
 from datetime import date
 
-
+# ⚠️ 安全提醒：公開程式碼時請記得隱藏或更換你的 Token
 TOKEN = "7742431712:AAHBx-YjOKHNK6Pq_bDkj7nOOnxEejE_Xo8"
 BOT_USERNAME = "@Run1234567bot"
 bot = telebot.TeleBot(TOKEN)
@@ -56,7 +56,7 @@ init_db()
 current_race = None
 race_id = None
 race_bets = {}   
-race_odds = {}  # 儲存當期馬匹的隨機獨贏賠率 { "⚡1.閃電": 5.4, ... }
+race_odds = {}  # 儲存當期馬匹的隨機獨贏賠率
 
 # ================== 機器人指令處理 ==================
 @bot.message_handler(commands=['start'])
@@ -131,47 +131,80 @@ def startrace(message):
     bot.reply_to(message, text, parse_mode='Markdown')
     threading.Timer(60, lambda: run_race(message.chat.id)).start()
 
-# ================== 核心：動態模擬賽馬與結算 ==================
+# ================== 核心：動態模擬賽馬（10秒 - 2分鐘隨機完賽） ==================
 def run_race(chat_id):
     global current_race, race_id, race_odds
     
-    # 發送開賽起點訊息，並記錄訊息 ID 用於後續編輯
     race_msg = bot.send_message(chat_id, "🏁 **鳴槍開跑！馬匹正在激烈交鋒中...** 🏁", parse_mode='Markdown')
     
-    TRACK_LENGTH = 15  # 跑道長度度
-    progress = {h: 0 for h in HORSES}
-    finished_horses = [] 
+    TOTAL_DISTANCE = 100.0  # 邏輯總長度設為 100
+    DISPLAY_LENGTH = 15     # 畫面上顯示的格子數（保持畫面的整齊美觀）
     
-    # 🐎 動態跑馬迴圈
+    # ⏱️ 關鍵核心：隨機為每隻馬產生 10秒 到 120秒 之間的完賽時間
+    target_times = {h: random.uniform(10.0, 120.0) for h in HORSES}
+    
+    # 根據目標完賽時間，計算每隻馬「每秒該跑的格數」
+    speeds = {h: TOTAL_DISTANCE / target_times[h] for h in HORSES}
+    
+    # 初始化狀態
+    current_distance = {h: 0.0 for h in HORSES}
+    finished_horses = []
+    
+    start_time = time.time()
+    last_refresh_time = start_time
+    
+    # 🐎 動態跑馬核心主迴圈
     while len(finished_horses) < len(HORSES):
-        time.sleep(0.8)  # 每 0.8 秒刷新一次跑道畫面
+        time.sleep(0.1)  # 後台高頻率計算位置
+        now = time.time()
+        elapsed = now - start_time
         
+        # 根據流逝的時間，精準更新每隻馬前進的距離
         for h in HORSES:
-            if progress[h] < TRACK_LENGTH:
-                progress[h] += random.randint(1, 3)  # 隨機進步
-                if progress[h] >= TRACK_LENGTH:
-                    progress[h] = TRACK_LENGTH
+            if current_distance[h] < TOTAL_DISTANCE:
+                # 基礎位置 = 當前時間 * 每秒速度
+                current_distance[h] = elapsed * speeds[h]
+                
+                # 加上一點微小的隨機顛簸（增加賽事的超車隨機性）
+                current_distance[h] += random.uniform(-0.5, 0.5)
+                if current_distance[h] < 0: current_distance[h] = 0
+                
+                # 判定是否衝線
+                if current_distance[h] >= TOTAL_DISTANCE:
+                    current_distance[h] = TOTAL_DISTANCE
                     if h not in finished_horses:
                         finished_horses.append(h)
                         
-        # 繪製跑道
-        dynamic_text = f"🏇 **第 {race_id} 場賽事 現場直播** 🏁\n"
-        dynamic_text += "‾" * 25 + "\n"
-        
-        for h in HORSES:
-            passed = progress[h]
-            remaining = TRACK_LENGTH - passed
-            track_str = "🟩" * passed + "🐎" + "🟩" * remaining
-            status_flag = " 🏁" if progress[h] == TRACK_LENGTH else ""
-            dynamic_text += f"{h}\n{track_str}{status_flag}\n\n"
+        # 🛡️ 防刷屏限制：每 2.0 秒才更新一次 Telegram 畫面
+        if now - last_refresh_time >= 2.0 or len(finished_horses) == len(HORSES):
+            last_refresh_time = now
             
-        dynamic_text += "—" * 25 + "\n💨 馬匹正在全力衝刺中..."
-        
-        try:
-            bot.edit_message_text(dynamic_text, chat_id, race_msg.message_id, parse_mode='Markdown')
-        except:
-            pass  # 預防 Telegram API 頻率限制導致程式中斷
+            dynamic_text = f"🏇 **第 {race_id} 場賽事 現場直播** 🏁\n"
+            dynamic_text += "‾" * 25 + "\n"
             
+            for h in HORSES:
+                # 將邏輯的 100 進度等比例換算成畫面的 15 格
+                progress_ratio = current_distance[h] / TOTAL_DISTANCE
+                passed_display = int(progress_ratio * DISPLAY_LENGTH)
+                if passed_display > DISPLAY_LENGTH: passed_display = DISPLAY_LENGTH
+                remaining_display = DISPLAY_LENGTH - passed_display
+                
+                # 💡 由右向左跑邏輯：左邊終點 🏁，右邊起點
+                track_str = "🏁 " + "🟩" * remaining_to_goal_display + "🐎" + "🟩" * passed_display
+                # 修正上方變數：由總長度減去已走格數
+                remaining_to_goal_display = DISPLAY_LENGTH - passed_display
+                track_str = "🏁 " + "🟩" * remaining_to_goal_display + "🐎" + "🟩" * passed_display
+                
+                status_flag = " ✨衝線！" if current_distance[h] == TOTAL_DISTANCE else ""
+                dynamic_text += f"{h}{status_flag}\n{track_str}\n\n"
+                
+            dynamic_text += "—" * 25 + f"\n💨 賽事已進行：{int(elapsed)} 秒\n💨 馬匹正在全力衝刺中..."
+            
+            try:
+                bot.edit_message_text(dynamic_text, chat_id, race_msg.message_id, parse_mode='Markdown')
+            except:
+                pass
+                
     # 🏁 定格最終名次
     winner = finished_horses[0]
     second = finished_horses[1]
@@ -190,7 +223,6 @@ def run_race(chat_id):
         for uid, bets in race_bets[race_id].items():
             win_amount = 0
             for bet_type, horses, amt in bets:
-                # 即使當初實際扣除為 0 chips，這裡的 amt (總投注額) 依然保持有效，中獎照算
                 if bet_type == "bet" and horses == winner:
                     win_amount += int(amt * race_odds[winner])
                 elif bet_type == "place" and horses in finished_horses[:3]:
@@ -230,7 +262,6 @@ def place_bet(message):
         user_id = message.from_user.id
         chips = get_chips(user_id)
 
-        # 1. 解析與驗證馬匹號碼 (支援 1-8 號)
         if bet_type in ["bet", "place"]:
             if len(cmd) < 3: raise ValueError
             horse_num = int(cmd[1])
@@ -250,7 +281,6 @@ def place_bet(message):
                 return
             horses = [HORSES[horse1-1], HORSES[horse2-1]]
 
-        # 2. 計算目標「總投注額」
         if "%" in amount_str:
             percent = int(amount_str.replace("%", ""))
             if percent <= 0 or percent > 100:
@@ -264,7 +294,6 @@ def place_bet(message):
             bot.reply_to(message, "❌ 下注金額必須大於 0！")
             return
 
-        # 3. 🛡️ 保底機制：計算「實際扣除額」（少於 100 扣除 0 金幣）
         credit = 100
         if bet_amount <= credit:
             actual_deduct = 0
@@ -273,12 +302,10 @@ def place_bet(message):
             actual_deduct = bet_amount - credit
             used_credit = credit
 
-        # 4. 檢查玩家剩餘錢包夠不夠付「實際扣除額」
         if actual_deduct > chips:
             bot.reply_to(message, "❌ 籌碼不足！")
             return
 
-        # 5. 資料庫扣除玩家實際籌碼，但系統紀錄下注為「總投注額 (bet_amount)」
         update_chips(user_id, -actual_deduct)
 
         if user_id not in race_bets[race_id]:
@@ -286,7 +313,6 @@ def place_bet(message):
         
         race_bets[race_id][user_id].append((bet_type, horses, bet_amount))
 
-        # 6. 動態計算當前即時賠率並回傳明細
         bet_name = "獨贏" if bet_type=="bet" else "位置" if bet_type=="place" else "連贏"
         show_horse = f"{horses[0]} + {horses[1]}" if isinstance(horses, list) else horses
         
