@@ -11,12 +11,12 @@ TOKEN = "7742431712:AAHBx-YjOKHNK6Pq_bDkj7nOOnxEejE_Xo8"
 BOT_USERNAME = "@Run1234567bot"
 bot = telebot.TeleBot(TOKEN)
 
-# 🏇 基礎 7 隻固定馬匹名單（保留第 8 個位置給玩家的專屬馬）
+# 🏇 基礎 7 隻固定馬匹名單（保留第 8 個位置給抽中的專屬馬）
 BASE_HORSES = [
     "⚡1.閃電", "🌪2.黑旋風", "⭐3.幸運星", "🔥4.火麒麟", 
     "💨5.疾風", "🏅6.黃金戰馬", "🌊7.海嘯"
 ]
-DEFAULT_HORSE_8 = "🦅8.傲空" # 若無人購買專屬馬，則預設的 8 號馬
+DEFAULT_HORSE_8 = "🦅8.傲空" # 若當局無馬主下注，則預設的 8 號馬
 
 # 🔢 名次對應的數字 Emoji 對照表（完賽定格用）
 RANK_EMOJIS = {
@@ -87,17 +87,19 @@ def get_all_horse_owners():
         rows = c.fetchall()
         return [row[0] for row in rows]
 
-# 隨機抽取一位在本局有投注、且擁有專屬馬匹的玩家馬名登場
+# 🎰 核心隨機抽獎機制：不論多少位馬主下注，用抽籤形式隨機挑選一位上場
 def get_active_custom_horse(active_user_ids):
     if not active_user_ids:
         return DEFAULT_HORSE_8
     
     with sqlite3.connect(DB_FILE) as conn:
         c = conn.cursor()
+        # 從這局有下注的人當中，撈出「同時也是馬主」的玩家名單
         placeholders = ','.join('?' for _ in active_user_ids)
         c.execute(f"SELECT horse_name FROM users WHERE has_horse=1 AND horse_name IS NOT NULL AND user_id IN ({placeholders})", list(active_user_ids))
         rows = c.fetchall()
         
+        # 如果有馬主參與下注（不論幾個人），隨機抽籤一隻馬名代表 8 號上場
         if rows:
             chosen_name = random.choice(rows)[0]
             return f"👑8.{chosen_name}" 
@@ -294,6 +296,8 @@ def run_race(chat_id):
         return
 
     active_users = race_bets.get(race_id, {}).keys()
+    
+    # 🎰 呼叫隨機抽獎函數：從本局下注的馬主中，用隨機抽獎形式挑選 1 人上場
     chosen_custom_horse = get_active_custom_horse(active_users)
     
     old_8_horse = current_horses[7]
