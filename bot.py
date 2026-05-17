@@ -633,6 +633,68 @@ def balance(message):
     chips = get_chips(message.from_user.id)
     bot.reply_to(message, f"💰 你的籌碼：**{chips}** chips", parse_mode='Markdown')
 
+# ================== 💸 核心功能：玩家轉帳轉讓系統 💸 ==================
+@bot.message_handler(commands=['pay'])
+def pay_chips(message):
+    # 1. 檢查是否為回覆訊息
+    if not message.reply_to_message:
+        bot.reply_to(message, "❌ **轉帳失敗！**\n請**回覆（Reply）**你想轉讓籌碼的那位玩家的訊息，並輸入 `/pay 金額`", parse_mode='Markdown')
+        return
+
+    from_user_id = message.from_user.id
+    to_user_id = message.reply_to_message.from_user.id
+    
+    # 2. 安全檢查：防止轉帳給自己
+    if from_user_id == to_user_id:
+        bot.reply_to(message, "❌ 喂！不能把籌碼轉讓給自己啦！")
+        return
+
+    # 3. 安全檢查：防止轉帳給機器人
+    if message.reply_to_message.from_user.is_bot:
+        bot.reply_to(message, "❌ 系統無法接收您的個人籌碼轉讓喔！")
+        return
+
+    # 4. 解析輸入金額
+    cmd = message.text.split()
+    if len(cmd) < 2:
+        bot.reply_to(message, "❌ 請輸入你想轉讓的金額！\n例如回覆別人：`/pay 500`", parse_mode='Markdown')
+        return
+
+    try:
+        pay_amount = int(cmd[1])
+        if pay_amount <= 0:
+            bot.reply_to(message, "❌ 轉讓金額必須大於 0！")
+            return
+    except ValueError:
+        bot.reply_to(message, "❌ 金額格式不正確，請輸入整數數字！\n例如：`/pay 1000`")
+        return
+
+    # 5. 餘額檢查：檢查轉出方籌碼是否足夠
+    from_user_chips = get_chips(from_user_id) # 呼叫你原本的 get_chips 函數
+    if from_user_chips < pay_amount:
+        bot.reply_to(message, f"❌ 您的籌碼不足！您目前只有 **{from_user_chips}** chips，無法轉出 {pay_amount}。")
+        return
+
+    # 6. 確保接收方在資料庫中存在（若無則 get_chips 會自動初始化）
+    get_chips(to_user_id)
+
+    # 7. 執行資料庫變更（呼叫你原本的 update_chips 函數）
+    update_chips(from_user_id, -pay_amount) # 扣錢
+    update_chips(to_user_id, pay_amount)   # 加錢
+
+    # 8. 獲取雙方暱稱並發送成功公告
+    from_username = message.from_user.first_name
+    to_username = message.reply_to_message.from_user.first_name
+
+    success_text = (
+        f"💸 **【籌碼轉讓成功】** 💸\n"
+        f"🤝 轉出人：<a href='tg://user?id={from_user_id}'>{from_username}</a>\n"
+        f"🎁 接收人：<a href='tg://user?id={to_user_id}'>{to_username}</a>\n"
+        f"💰 轉讓金額：<b>{pay_amount}</b> chips\n\n"
+        f"祝兩位合作愉快，繼續在賽馬場大發利市！ 🏇"
+    )
+    bot.send_message(message.chat.id, success_text, parse_mode='HTML')
+
 # ================== 啟動服務 ==================
 print(f"🏇 {BOT_USERNAME} 已經完全升級成功並啟動監聽...")
 bot.infinity_polling()
