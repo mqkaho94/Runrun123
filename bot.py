@@ -25,7 +25,7 @@ RANK_EMOJIS = {
 }
 
 DB_FILE = 'race.db'
-HORSE_PRICE = 3000  # 💡 已修改：購買馬匹所需籌碼改為 3000 chips
+HORSE_PRICE = 3000  # 購買馬匹所需籌碼為 3000 chips
 
 # ================== 資料庫升級 ==================
 def init_db():
@@ -129,7 +129,7 @@ def buy_horse(message):
     horse_info = get_user_horse(user_id)
 
     if horse_info["has_horse"] == 1:
-        bot.reply_to(message, f"🐴 您已經擁有一匹愛駒了！目前名字為：**{horse_info['horse_name']}**\n若想改名請直接輸入：\n`/buy 修改名字` (最多4個字)", parse_mode='Markdown')
+        bot.reply_to(message, f"🐴 您已經擁有一匹愛駒了！目前名字為：**{horse_info['horse_name']}**\n若想修改名字請輸入：\n`/rename 新的馬名`", parse_mode='Markdown')
         return
 
     cmd = message.text.split(maxsplit=1)
@@ -162,14 +162,51 @@ def buy_horse(message):
 
     bot.reply_to(message, f"🎉 **恭喜購馬成功！**\n籌碼已扣除 {HORSE_PRICE}。\n您的愛駒 **「{horse_name}」** 已成功登記！今後只要你在群組下注，牠就有機會代表 8 號馬出賽參戰！")
 
+@bot.message_handler(commands=['rename'])
+def rename_horse(message):
+    if message.chat.type != "private":
+        bot.reply_to(message, f"❌ 為了防洗版，此功能限私訊使用！請點擊此處私訊我： {BOT_USERNAME}")
+        return
+
+    user_id = message.from_user.id
+    horse_info = get_user_horse(user_id)
+
+    if horse_info["has_horse"] == 0:
+        bot.reply_to(message, "❌ 您目前還沒有馬匹，無法使用改名功能！請先輸入 `/buy 馬名` 購買一匹。", parse_mode='Markdown')
+        return
+
+    cmd = message.text.split(maxsplit=1)
+    
+    if len(cmd) < 2:
+        bot.reply_to(message, 
+            f"🐴 **【愛駒改名所】**\n\n"
+            f"目前愛駒名字：**{horse_info['horse_name']}**\n\n"
+            f"👉 **改名請輸入**：\n`/rename 新的馬名` (最多4個字，例如：`/rename 閃電俠`)", 
+            parse_mode='Markdown')
+        return
+
+    new_horse_name = cmd[1].strip()
+
+    if len(new_horse_name) < 1 or len(new_horse_name) > 4:
+        bot.reply_to(message, "❌ 名字字數不符合規定！請設定在 **1 到 4 個字** 之間。")
+        return
+
+    with sqlite3.connect(DB_FILE) as conn:
+        c = conn.cursor()
+        c.execute("UPDATE users SET horse_name=? WHERE user_id=?", (new_horse_name, user_id))
+        conn.commit()
+
+    bot.reply_to(message, f"✨ **改名成功！**\n您的愛駒已成功更名為：**「{new_horse_name}」** 🏇")
+
 @bot.message_handler(commands=['start'])
 def start(message):
     chips = get_chips(message.from_user.id)
     text = (
         f"🏇 **{BOT_USERNAME} 虛擬賽馬** 🏇\n\n"
         f"💰 你的籌碼：**{chips}** chips\n\n"
-        f"💡 **【私訊專屬新功能】**\n"
-        f"輸入 `/buy 馬名` 可以用 {HORSE_PRICE} 籌碼購買一匹寫著你自訂名字（限4字內）的專屬賽馬！\n\n"
+        f"💡 **【私訊專屬功能】**\n"
+        f"輸入 `/buy 馬名` 可以用 {HORSE_PRICE} 籌碼購買專屬賽馬！\n"
+        f"輸入 `/rename 新馬名` 可以幫現有的愛駒改名！\n\n"
         f"輸入 /help 查看所有指令"
     )
     bot.reply_to(message, text, parse_mode='Markdown')
@@ -200,7 +237,8 @@ def help_cmd(message):
 /startrace - 開始新賽事 (自動刷新隨機賠率)
 /balance   - 查詢目前籌碼
 /refund    - 開賽前退款當局投注（每場限一次）
-/buy       - <b>【私訊限定】</b>購買專屬馬匹 / 修改名字 (限4字)
+/buy       - <b>【私訊限定】</b>購買專屬馬匹 (3000 chips)
+/rename    - <b>【私訊限定】</b>自訂愛駒修改名字 (限4字)
 
 【投注方式】（每場限投注一次）
 /bet <號碼> <金額>     → 獨贏
