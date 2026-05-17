@@ -56,6 +56,20 @@ def start(message):
         f"輸入 /help 查看所有指令", 
         parse_mode='Markdown')
 
+@bot.message_handler(commands=['daily'])
+def daily(message):
+    user_id = message.from_user.id
+    today = date.today().isoformat()
+    c.execute("SELECT last_daily FROM users WHERE user_id=?", (user_id,))
+    last = c.fetchone()
+    if last and last[0] == today:
+        bot.reply_to(message, "❌ 你今天已經領過每日獎勵！")
+        return
+    update_chips(user_id, 3000)
+    c.execute("UPDATE users SET last_daily=? WHERE user_id=?", (today, user_id))
+    conn.commit()
+    bot.reply_to(message, "✅ **每日簽到成功！** +3000chips 💰")
+
 @bot.message_handler(commands=['help'])
 def help_cmd(message):
     text = f"""🏇 **{BOT_USERNAME} 指令列表**
@@ -82,13 +96,13 @@ def startrace(message):
     race_id = f"R{int(time.time())}"
     race_bets[race_id] = {}
 
-    text = f"🏇 **第 {race_id} 場賽事開始！** 30秒後開跑 🏁\n\n"
+    text = f"🏇 **第 {race_id} 場賽事開始！** 60秒後開跑 🏁\n\n"
     for h in HORSES:
         text += f"{h}\n"
     text += "\n💰 下注範例：\n/bet 1 500\n/place 3 300\n/lin 1 2 200"
     
     bot.reply_to(message, text, parse_mode='Markdown')
-    threading.Timer(30, lambda: run_race(message.chat.id)).start()
+    threading.Timer(60, lambda: run_race(message.chat.id)).start()
 
 def run_race(chat_id):
     global current_race
