@@ -382,33 +382,54 @@ def run_race(chat_id):
         if has_winner: bot.send_message(chat_id, payout_message, parse_mode='HTML')
         else: bot.send_message(chat_id, "壓注全空！本局沒有人中獎 💸")
 
-    # 👑 馬主大獎與安慰獎分紅系統
+    # 👑 馬主大獎與安慰獎分紅系統 (精準修正版)
     owner_text = "✨ <b>【本局馬主專利分紅】</b> ✨\n"
-    big_winners, has_owner_bonus = [], False
-    for rank_idx in range(3):
+    big_winners = [] 
+    has_owner_bonus = False
+    
+    # 1. 先發放前三名的隨機大獎
+    for rank_idx in range(min(3, len(all_ranks))):
         target_horse = all_ranks[rank_idx]
         if "👑" in target_horse:
             owner_id = get_owner_by_horse_name(target_horse)
             if owner_id:
+                owner_id = int(owner_id) # 確保強轉型為整數
                 rank_num = rank_idx + 1
-                bonus_chips = random.randint(200000, 300000) if rank_num==1 else random.randint(50000, 100000) if rank_num==2 else random.randint(10000, 30000)
-                t_title = "🥇 冠軍" if rank_num==1 else "🥈 亞軍" if rank_num==2 else "🥉 季軍"
+                
+                # 隨機彩金分配
+                if rank_num == 1:
+                    bonus_chips = random.randint(200000, 300000)
+                    t_title = "🥇 冠軍"
+                elif rank_num == 2:
+                    bonus_chips = random.randint(50000, 100000)
+                    t_title = "🥈 亞軍"
+                else:
+                    bonus_chips = random.randint(10000, 30000)
+                    t_title = "🥉 季軍"
+                
                 update_chips(owner_id, bonus_chips)
                 big_winners.append(owner_id)
                 owner_text += f"恭喜專屬馬 <b>{target_horse}</b> 榮獲{t_title}！\n馬主 <a href='tg://user?id={owner_id}'>{owner_id}</a> 獲得隨機大獎 <b>+{bonus_chips}</b> chips 💰\n"
                 has_owner_bonus = True
 
-    if has_owner_bonus:
-        all_owners = get_all_horse_owners()
-        consolation_owners = [oid for oid in all_owners if oid not in big_winners]
-        if consolation_owners:
-            lucky_comfort_bonus = random.randint(3000, 5000)
-            for c_owner in consolation_owners: update_chips(c_owner, lucky_comfort_bonus)
-            owner_text += f"\n🎁 <b>【馬主同慶安慰獎】</b>\n其餘 <b>{len(consolation_owners)}</b> 位馬主獲得 <b>+{lucky_comfort_bonus}</b> chips 安慰獎！\n"
-        bot.send_message(chat_id, owner_text, parse_mode='HTML')
+    # 2. 精準發放安慰獎（沒拿到前三名大獎的所有馬主）
+    all_owners = get_all_horse_owners()
+    # 🌟 核心修正：確保兩邊比對時都是 int 型態，避免型態不一致導致沒發到
+    consolation_owners = [int(oid) for oid in all_owners if int(oid) not in big_winners]
     
-    current_race, race_odds = None, {}
-    if race_id in race_bets: del race_bets[race_id]
+    if consolation_owners:
+        lucky_comfort_bonus = random.randint(3000, 5000)
+        for c_owner in consolation_owners:
+            update_chips(c_owner, lucky_comfort_bonus)
+            
+        owner_text += f"\n🎁 <b>【馬主同慶安慰獎】</b>\n其餘 <b>{len(consolation_owners)}</b> 位馬主獲得 <b>+{lucky_comfort_bonus}</b> chips 安慰獎！\n"
+        has_owner_bonus = True # 確保就算前三名沒玩家馬，只要有其他馬主在，也會發送訊息
+        print(f"ℹ️ [BONUS] 已成功發放安慰獎各 {lucky_comfort_bonus} chips 給馬主們: {consolation_owners}")
+
+    # 只要有任何一種分紅，就發送群組公告
+    if has_owner_bonus:
+        bot.send_message(chat_id, owner_text, parse_mode='HTML')
+
 
 # ================== 核心：投注與退款邏輯處理 ==================
 @bot.message_handler(commands=['bet', 'place', 'lin'])
