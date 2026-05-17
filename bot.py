@@ -429,7 +429,7 @@ def run_race(chat_id):
     current_race, race_odds = None, {}
     if race_id in race_bets: del race_bets[race_id]
 
-# ================== 核心：投注與退款邏輯（仿截圖排版格式） ==================
+# ================== 核心：投注與退款邏輯（加入格式錯誤防呆機制） ==================
 @bot.message_handler(commands=['bet', 'place', 'lin'])
 def place_bet(message):
     global current_race, race_id, race_odds, user_bet_count, user_actual_deduct, current_horses
@@ -444,6 +444,18 @@ def place_bet(message):
         bot.reply_to(message, "❌ 您本場已投注過！更改請先輸入 /refund 退款。")
         return
 
+    # 定義格式錯誤提示內容
+    error_help_text = (
+        "❌ **投注格式錯誤！**\n\n"
+        "💡 **請參考以下正確的下注範例：**\n"
+        "👉 **獨贏** (押第一名)：`/bet [馬匹編號] [金額]`\n"
+        "範例：`/bet 1 200`\n\n"
+        "👉 **位置** (押前三名)：`/place [馬匹編號] [金額]`\n"
+        "範例：`/place 3 500`\n\n"
+        "👉 **連贏** (押前兩名，不限順序)：`/lin [馬匹A] [馬匹B] [金額]`\n"
+        "範例：`/lin 1 2 300`"
+    )
+
     try:
         text_clean = message.text
         if f"{BOT_USERNAME}" in text_clean:
@@ -455,38 +467,69 @@ def place_bet(message):
         bet_type = cmd[0][1:]
         chips = get_chips(user_id)
 
-        # 讀取馬匹編號與投注金額
+        # 1. 解析與驗證馬匹編號
         if bet_type in ["bet", "place"]:
-            if len(cmd) < 3: raise ValueError
-            horse_num = int(cmd[1])
-            amount_str = cmd[2]
-            if horse_num < 1 or horse_num > len(current_horses): return
+            if len(cmd) < 3: 
+                bot.reply_to(message, error_help_text, parse_mode='Markdown')
+                return
+            try:
+                horse_num = int(cmd[1])
+                amount_str = cmd[2]
+            except ValueError:
+                bot.reply_to(message, error_help_text, parse_mode='Markdown')
+                return
+                
+            if horse_num < 1 or horse_num > len(current_horses): 
+                bot.reply_to(message, f"❌ 投注失敗：找不到該馬匹編號！目前只有 1 到 {len(current_horses)} 號馬。", parse_mode='Markdown')
+                return
             selected_horse_full = current_horses[horse_num-1]
+            
         elif bet_type == "lin":
-            if len(cmd) < 4: raise ValueError
-            h1, h2 = int(cmd[1]), int(cmd[2])
-            amount_str = cmd[3]
-            if h1 == h2 or min(h1, h2) < 1 or max(h1, h2) > len(current_horses): return
+            if len(cmd) < 4: 
+                bot.reply_to(message, error_help_text, parse_mode='Markdown')
+                return
+            try:
+                h1, h2 = int(cmd[1]), int(cmd[2])
+                amount_str = cmd[3]
+            except ValueError:
+                bot.reply_to(message, error_help_text, parse_mode='Markdown')
+                return
+                
+            if h1 == h2:
+                bot.reply_to(message, "❌ 投注失敗：連贏的兩匹馬不能是同一個編號！", parse_mode='Markdown')
+                return
+            if min(h1, h2) < 1 or max(h1, h2) > len(current_horses): 
+                bot.reply_to(message, f"❌ 投注失敗：找不到對應的馬匹編號！目前只有 1 到 {len(current_horses)} 號馬。", parse_mode='Markdown')
+                return
             selected_horse_full = [current_horses[h1-1], current_horses[h2-1]]
 
-        bet_amount = int(chips * int(amount_str.replace("%", "")) / 100) if "%" in amount_str else int(amount_str)
-        if bet_amount <= 0: return
+        # 2. 解析與驗證下注金額
+        try:
+            bet_amount = int(chips * int(amount_str.replace("%", "")) / 100) if "%" in amount_str else int(amount_str)
+        except ValueError:
+            bot.reply_to(message, error_help_text, parse_mode='Markdown')
+            return
+            
+        if bet_amount <= 0: 
+            bot.reply_to(message, "❌ 投注失敗：下注金額必須大於 0 金幣！", parse_mode='Markdown')
+            return
 
-        # 🌟 100 信用額度計算（不設下注金額限制）
+        # 3. 100 信用額度與扣款金額計算
         credit = 100
         actual_deduct = max(0, bet_amount - credit) if bet_amount > credit else 0
         if actual_deduct > chips:
-            bot.reply_to(message, f"❌ 餘額不足！扣除 100 信用額後，您還需要 {actual_deduct:,} 金幣，但您目前只有 {chips:,}。")
+            bot.reply_to(message, f"❌ 餘額不足！扣除 100 信用額後，您還需要 {actual_deduct:,} 金幣，但您目前只有 {chips:,}。", parse_mode='Markdown')
             return
 
+        # ⚡ 優先即時扣款更新資料庫 ⚡
         update_chips(user_id, -actual_deduct)
         user_actual_deduct[user_id] = actual_deduct 
+        user_bet_count[user_id] = 1
 
         if user_id not in race_bets[race_id]: race_bets[race_id][user_id] = []
         race_bets[race_id][user_id].append((bet_type, selected_horse_full, bet_amount))
-        user_bet_count[user_id] = 1
 
-        # 整理玩法中文字，並過濾馬匹序號
+        # 4. 整理玩法與馬匹名稱格式化輸出
         type_title = "獨贏" if bet_type == "bet" else "位置" if bet_type == "place" else "連贏"
         
         if bet_type == "lin":
@@ -499,10 +542,9 @@ def place_bet(message):
             horse_display = f"{horse_num} 號 {horse_name_clean}"
             odds_val = race_odds[selected_horse_full] if bet_type == "bet" else round(race_odds[selected_horse_full] / 2, 1)
 
-        # 計算預估可贏金幣
         potential_win = int(bet_amount * odds_val)
 
-        # 🌟 完全依照第二張截圖紅圈排版格式化輸出（粗體形式） 🌟
+        # 完美跟隨截圖樣式回覆
         success_msg = (
             f"✅ **{type_title}投注成功！{horse_display}**\n"
             f"**投注額：{bet_amount:,} 金幣**\n"
@@ -511,7 +553,9 @@ def place_bet(message):
             f"💰 **若勝出可贏：{potential_win:,} 金幣**"
         )
         bot.reply_to(message, success_msg, parse_mode='Markdown')
-    except: pass
+    except Exception as e:
+        print(f"⚠️ [BET_ERROR] 原因: {str(e)}")
+        bot.reply_to(message, error_help_text, parse_mode='Markdown')
 
 @bot.message_handler(commands=['refund'])
 def refund_bet(message):
@@ -520,6 +564,7 @@ def refund_bet(message):
     user_id = message.from_user.id
     if user_bet_count.get(user_id, 0) == 0 or user_refund_count.get(user_id, 0) >= 1: return
     refund_amount = user_actual_deduct.get(user_id, 0)
+    
     update_chips(user_id, refund_amount) 
     if race_id in race_bets and user_id in race_bets[race_id]: del race_bets[race_id][user_id]
     user_bet_count[user_id] = 0
@@ -616,5 +661,5 @@ def help_cmd(message):
     bot.reply_to(message, text, parse_mode='HTML')
 
 # ================== 啟動服務 ==================
-print(f"🏇 {BOT_USERNAME} 無投注下限＋100金幣信用抵扣版，已完美套用對齊截圖格式！")
+print(f"🏇 {BOT_USERNAME} 全能防呆優化版已啟動！")
 bot.infinity_polling()
