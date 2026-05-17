@@ -131,14 +131,14 @@ def startrace(message):
     bot.reply_to(message, text, parse_mode='Markdown')
     threading.Timer(60, lambda: run_race(message.chat.id)).start()
 
-# ================== 核心：動態模擬賽馬（已修復未定義 Bug） ==================
+# ================== 核心：動態模擬賽馬（下底線跑道版） ==================
 def run_race(chat_id):
     global current_race, race_id, race_odds
     
     race_msg = bot.send_message(chat_id, "🏁 **鳴槍開跑！馬匹正在激烈交鋒中...** 🏁", parse_mode='Markdown')
     
-    TOTAL_DISTANCE = 100.0  # 邏輯總長度設為 100
-    DISPLAY_LENGTH = 15     # 畫面上顯示的格子數
+    TOTAL_DISTANCE = 100.0  # 邏輯總長度
+    DISPLAY_LENGTH = 15     # 畫面上顯示的下底線數量
     
     # ⏱️ 隨機為每隻馬產生 10秒 到 120秒 之間的完賽時間
     target_times = {h: random.uniform(10.0, 120.0) for h in HORSES}
@@ -154,7 +154,7 @@ def run_race(chat_id):
     
     # 🐎 動態跑馬核心主迴圈
     while len(finished_horses) < len(HORSES):
-        time.sleep(0.1)  # 高頻計算
+        time.sleep(0.1)  # 高頻計算位置
         now = time.time()
         elapsed = now - start_time
         
@@ -184,14 +184,13 @@ def run_race(chat_id):
                 passed_display = int(progress_ratio * DISPLAY_LENGTH)
                 if passed_display > DISPLAY_LENGTH: passed_display = DISPLAY_LENGTH
                 
-                # 💡 先定義剩餘長度，修復未定義 Bug
                 remaining_to_goal_display = DISPLAY_LENGTH - passed_display
                 
-                # 繪製由右向左跑跑道 (🏁 終點 | 剩餘 | 馬 | 已走)
-                track_str = "🏁 " + "🟩" * remaining_to_goal_display + "🐎" + "🟩" * passed_display
+                # 💡 已將 🟩 替換為 _ （由右向左跑邏輯：🏁 終點 | 剩餘下底線 | 馬 | 已走下底線）
+                track_str = "🏁 " + "_" * remaining_to_goal_display + "🐎" + "_" * passed_display
                 
                 status_flag = " ✨衝線！" if current_distance[h] == TOTAL_DISTANCE else ""
-                dynamic_text += f"{h}{status_flag}\n{track_str}\n\n"
+                dynamic_text += f"{h}{status_flag}\n`{track_str}`\n\n" # 用等寬字體包裹跑道讓版面更整齊
                 
             dynamic_text += "—" * 25 + f"\n💨 賽事已進行：{int(elapsed)} 秒\n💨 馬匹正在由右向左全力衝刺中..."
             
