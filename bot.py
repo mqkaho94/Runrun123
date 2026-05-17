@@ -131,22 +131,21 @@ def startrace(message):
     bot.reply_to(message, text, parse_mode='Markdown')
     threading.Timer(60, lambda: run_race(message.chat.id)).start()
 
-# ================== 核心：動態模擬賽馬（10秒 - 2分鐘隨機完賽） ==================
+# ================== 核心：動態模擬賽馬（已修復未定義 Bug） ==================
 def run_race(chat_id):
     global current_race, race_id, race_odds
     
     race_msg = bot.send_message(chat_id, "🏁 **鳴槍開跑！馬匹正在激烈交鋒中...** 🏁", parse_mode='Markdown')
     
     TOTAL_DISTANCE = 100.0  # 邏輯總長度設為 100
-    DISPLAY_LENGTH = 15     # 畫面上顯示的格子數（保持畫面的整齊美觀）
+    DISPLAY_LENGTH = 15     # 畫面上顯示的格子數
     
-    # ⏱️ 關鍵核心：隨機為每隻馬產生 10秒 到 120秒 之間的完賽時間
+    # ⏱️ 隨機為每隻馬產生 10秒 到 120秒 之間的完賽時間
     target_times = {h: random.uniform(10.0, 120.0) for h in HORSES}
     
-    # 根據目標完賽時間，計算每隻馬「每秒該跑的格數」
+    # 計算每隻馬「每秒速度」
     speeds = {h: TOTAL_DISTANCE / target_times[h] for h in HORSES}
     
-    # 初始化狀態
     current_distance = {h: 0.0 for h in HORSES}
     finished_horses = []
     
@@ -155,27 +154,24 @@ def run_race(chat_id):
     
     # 🐎 動態跑馬核心主迴圈
     while len(finished_horses) < len(HORSES):
-        time.sleep(0.1)  # 後台高頻率計算位置
+        time.sleep(0.1)  # 高頻計算
         now = time.time()
         elapsed = now - start_time
         
-        # 根據流逝的時間，精準更新每隻馬前進的距離
         for h in HORSES:
             if current_distance[h] < TOTAL_DISTANCE:
-                # 基礎位置 = 當前時間 * 每秒速度
                 current_distance[h] = elapsed * speeds[h]
                 
-                # 加上一點微小的隨機顛簸（增加賽事的超車隨機性）
-                current_distance[h] += random.uniform(-0.5, 0.5)
+                # 微調隨機顛簸
+                current_distance[h] += random.uniform(-0.2, 0.2)
                 if current_distance[h] < 0: current_distance[h] = 0
                 
-                # 判定是否衝線
                 if current_distance[h] >= TOTAL_DISTANCE:
                     current_distance[h] = TOTAL_DISTANCE
                     if h not in finished_horses:
                         finished_horses.append(h)
                         
-        # 🛡️ 防刷屏限制：每 2.0 秒才更新一次 Telegram 畫面
+        # 🛡️ 每 2.0 秒或是全完賽時，才刷新畫面
         if now - last_refresh_time >= 2.0 or len(finished_horses) == len(HORSES):
             last_refresh_time = now
             
@@ -183,22 +179,21 @@ def run_race(chat_id):
             dynamic_text += "‾" * 25 + "\n"
             
             for h in HORSES:
-                # 將邏輯的 100 進度等比例換算成畫面的 15 格
+                # 等比例換算格數
                 progress_ratio = current_distance[h] / TOTAL_DISTANCE
                 passed_display = int(progress_ratio * DISPLAY_LENGTH)
                 if passed_display > DISPLAY_LENGTH: passed_display = DISPLAY_LENGTH
-                remaining_display = DISPLAY_LENGTH - passed_display
                 
-                # 💡 由右向左跑邏輯：左邊終點 🏁，右邊起點
-                track_str = "🏁 " + "🟩" * remaining_to_goal_display + "🐎" + "🟩" * passed_display
-                # 修正上方變數：由總長度減去已走格數
+                # 💡 先定義剩餘長度，修復未定義 Bug
                 remaining_to_goal_display = DISPLAY_LENGTH - passed_display
+                
+                # 繪製由右向左跑跑道 (🏁 終點 | 剩餘 | 馬 | 已走)
                 track_str = "🏁 " + "🟩" * remaining_to_goal_display + "🐎" + "🟩" * passed_display
                 
                 status_flag = " ✨衝線！" if current_distance[h] == TOTAL_DISTANCE else ""
                 dynamic_text += f"{h}{status_flag}\n{track_str}\n\n"
                 
-            dynamic_text += "—" * 25 + f"\n💨 賽事已進行：{int(elapsed)} 秒\n💨 馬匹正在全力衝刺中..."
+            dynamic_text += "—" * 25 + f"\n💨 賽事已進行：{int(elapsed)} 秒\n💨 馬匹正在由右向左全力衝刺中..."
             
             try:
                 bot.edit_message_text(dynamic_text, chat_id, race_msg.message_id, parse_mode='Markdown')
