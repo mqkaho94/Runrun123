@@ -17,7 +17,7 @@ HORSES = [
     "💨5.疾風", "🏅6.黃金戰馬", "🌊7.海嘯", "🦅8.傲空"
 ]
 
-# 🔢 名次對應的數字 Emoji 對照表
+# 🔢 名次對應的數字 Emoji 對照表（完賽定格用）
 RANK_EMOJIS = {
     1: "1️⃣", 2: "2️⃣", 3: "3️⃣", 4: "4️⃣",
     5: "5️⃣", 6: "6️⃣", 7: "7️⃣", 8: "8️⃣"
@@ -122,6 +122,7 @@ def startrace(message):
         bot.reply_to(message, "⚠️ 已有賽事進行中！")
         return
 
+    # 初始化本局狀態
     current_race = "betting"  
     race_id = f"R{int(time.time())}"
     race_bets[race_id] = {}
@@ -130,6 +131,7 @@ def startrace(message):
     user_refund_count = {}
     user_actual_deduct = {}
 
+    # 🎲 隨機生成 8 隻馬的獨贏賠率 (2.5 - 15.0倍)
     text = f"🏇 **第 {race_id} 場賽事開始！** 60秒後開跑 🏁\n\n"
     text += "【本局獨贏 / 位置 賠率公示】\n"
     for h in HORSES:
@@ -137,14 +139,21 @@ def startrace(message):
         place_odds = round(win_odds / 2, 1)
         race_odds[h] = win_odds  
         text += f"{h}  ➡️  獨贏: *{win_odds}x* | 位置: *{place_odds}x*\n"
-        
-    text += "\n💡 每人每場只能投注一次！開跑前若買錯可輸入 /refund 退款重填（限一次）。\n"
-    text += "\n💰 下注範例：\n/bet 1 500"
+
+    # 極簡下注範例區
+    text += "\n" + "—" * 20 + "\n"
+    text += "💰 **【下注範例】**\n"
+    text += "👉 獨贏：`/bet 1 100` (下注 1 號馬 100)\n"
+    text += "👉 位置：`/place 3 100` (下注 3 號馬前三名 100)\n"
+    text += "👉 連贏：`/lin 1 2 100` (下注 1 號與 2 號包辦前兩名 100)\n"
+    text += "—" * 20 + "\n"
+    
+    text += "\n💡 每人每場限投一次！開跑前買錯可輸入 `/refund` 退款重填。\n"
     
     bot.reply_to(message, text, parse_mode='Markdown')
     threading.Timer(60, lambda: run_race(message.chat.id)).start()
 
-# ================== 核心：動態模擬賽馬（已整合完賽數字化） ==================
+# ================== 核心：動態模擬賽馬 ==================
 def run_race(chat_id):
     global current_race, race_id, race_odds, race_bets
     
@@ -195,7 +204,7 @@ def run_race(chat_id):
                 if passed_display > DISPLAY_LENGTH: passed_display = DISPLAY_LENGTH
                 remaining_to_goal_display = DISPLAY_LENGTH - passed_display
                 
-                # 奔跑中依然顯示 🐎
+                # 奔跑中依然顯示 🐎 和 下底線
                 track_str = "🏁 " + "_" * remaining_to_goal_display + "🐎" + "_" * passed_display
                 
                 status_flag = ""
@@ -214,7 +223,7 @@ def run_race(chat_id):
             except:
                 pass
 
-    # 🛑 核心修改：前三名已出，計算剩餘馬匹當下的最終大排名
+    # 🛑 計算剩餘馬匹當下的最終大排名
     remaining_horses = [h for h in HORSES if h not in finished_horses]
     remaining_horses.sort(key=lambda h: current_distance[h], reverse=True)
     all_ranks = finished_horses + remaining_horses
@@ -224,7 +233,6 @@ def run_race(chat_id):
     final_track_text += "‾" * 25 + "\n"
     
     for h in HORSES:
-        # 找出這隻馬在 1-8 名當中的哪一個名次
         final_rank = all_ranks.index(h) + 1
         rank_emoji = RANK_EMOJIS.get(final_rank, "🐎") # 變身成 1️⃣ ~ 8️⃣ 數字
         
@@ -233,7 +241,6 @@ def run_race(chat_id):
         if passed_display > DISPLAY_LENGTH: passed_display = DISPLAY_LENGTH
         remaining_to_goal_display = DISPLAY_LENGTH - passed_display
         
-        # 💡 將原本跑道中的 "🐎" 替換成該馬匹的名次 "rank_emoji"
         track_str = "🏁 " + "_" * remaining_to_goal_display + rank_emoji + "_" * passed_display
         
         status_flag = ""
@@ -245,7 +252,6 @@ def run_race(chat_id):
         
     final_track_text += "—" * 25 + f"\n🏁 賽事在 {int(time.time() - start_time)} 秒時完美結算！"
     
-    # 更新動態跑道訊息為「數字定格版」
     try:
         bot.edit_message_text(final_track_text, chat_id, race_msg.message_id, parse_mode='Markdown')
     except:
