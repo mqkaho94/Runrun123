@@ -23,7 +23,8 @@ RANK_EMOJIS = {
     5: "5️⃣", 6: "6️⃣", 7: "7️⃣", 8: "8️⃣"
 }
 
-# 💾 資料庫持久化路徑設定（建議在 VPS 上改為絕對路徑如 '/var/lib/tgbot/race.db'）
+# 💾 資料庫持久化路徑設定
+# 提示：若你更新編碼時資料會重設，請將此處改為獨立於專案資料夾外的絕對路徑，例如：'/var/lib/mybot/race.db'
 DB_FILE = 'race.db'
 HORSE_PRICE = 3000  # 購買專屬馬匹所需籌碼
 
@@ -70,7 +71,7 @@ def get_user_horse(user_id):
         return {"has_horse": 0, "horse_name": None}
 
 def get_owner_by_horse_name(horse_name):
-    # 🌟 核心修復：精準剔除名字前方隨機產生的賽道號碼與裝飾符號
+    # 🌟 精準剔除名字前方隨機產生的賽道號碼與裝飾符號
     clean_name = horse_name
     if "." in clean_name:
         clean_name = clean_name.split(".", 1)[1]
@@ -119,7 +120,7 @@ user_actual_deduct = {}
 def pay_chips(message):
     try:
         from_user_id = message.from_user.id
-        # 每次發送指令時自動在資料庫同步更新自己的 username
+        # 自動同步發送者的 username
         sync_username(from_user_id, message.from_user.username)
         
         to_user_id = None
@@ -258,7 +259,7 @@ def startrace(message):
                 icon = npc_horse[0] if not npc_horse[0].isdigit() else "🐎"
                 final_8_horses.append((None, clean_npc_name, icon))
 
-    # 🌟🌟 第二重打亂（核心）：將這最終的 8 匹馬進行全體隨機大洗牌！號碼全隨機！ 🌟🌟
+    # 🌟🌟 第二重打亂：將這最終的 8 匹馬進行全體隨機大洗牌！號碼全隨機！ 🌟🌟
     random.shuffle(final_8_horses)
 
     # 🎲 2. 重新編排 1 至 8 號賽道
@@ -382,7 +383,7 @@ def run_race(chat_id):
         if has_winner: bot.send_message(chat_id, payout_message, parse_mode='HTML')
         else: bot.send_message(chat_id, "壓注全空！本局沒有人中獎 💸")
 
-    # 👑 馬主大獎與安慰獎分紅系統 (精準修正版)
+    # 👑 馬主大獎與安慰獎分紅系統 (馬主 UID 轉用戶名稱版)
     owner_text = "✨ <b>【本局馬主專利分紅】</b> ✨\n"
     big_winners = [] 
     has_owner_bonus = False
@@ -393,8 +394,15 @@ def run_race(chat_id):
         if "👑" in target_horse:
             owner_id = get_owner_by_horse_name(target_horse)
             if owner_id:
-                owner_id = int(owner_id) # 確保強轉型為整數
+                owner_id = int(owner_id)  # 強制轉整數
                 rank_num = rank_idx + 1
+                
+                # 嘗試從群組內直接獲取該馬主的最新暱稱，撈不到才用 UID 替代
+                try:
+                    member = bot.get_chat_member(chat_id, owner_id)
+                    owner_name = member.user.first_name
+                except Exception:
+                    owner_name = f"馬主({owner_id})"
                 
                 # 隨機彩金分配
                 if rank_num == 1:
@@ -409,27 +417,40 @@ def run_race(chat_id):
                 
                 update_chips(owner_id, bonus_chips)
                 big_winners.append(owner_id)
-                owner_text += f"恭喜專屬馬 <b>{target_horse}</b> 榮獲{t_title}！\n馬主 <a href='tg://user?id={owner_id}'>{owner_id}</a> 獲得隨機大獎 <b>+{bonus_chips}</b> chips 💰\n"
+                
+                # 顯示效果優化：改為具有超連結的玩家 First Name
+                owner_text += f"恭喜專屬馬 <b>{target_horse}</b> 榮獲{t_title}！\n馬主 <a href='tg://user?id={owner_id}'>{owner_name}</a> 獲得隨機大獎 <b>+{bonus_chips}</b> chips 💰\n"
                 has_owner_bonus = True
 
     # 2. 精準發放安慰獎（沒拿到前三名大獎的所有馬主）
     all_owners = get_all_horse_owners()
-    # 🌟 核心修正：確保兩邊比對時都是 int 型態，避免型態不一致導致沒發到
     consolation_owners = [int(oid) for oid in all_owners if int(oid) not in big_winners]
     
     if consolation_owners:
         lucky_comfort_bonus = random.randint(3000, 5000)
+        consolation_mentions = []
+        
         for c_owner in consolation_owners:
             update_chips(c_owner, lucky_comfort_bonus)
+            # 幫安慰獎的馬主們撈取用戶名稱
+            try:
+                member = bot.get_chat_member(chat_id, c_owner)
+                c_name = member.user.first_name
+            except Exception:
+                c_name = f"馬主({c_owner})"
             
-        owner_text += f"\n🎁 <b>【馬主同慶安慰獎】</b>\n其餘 <b>{len(consolation_owners)}</b> 位馬主獲得 <b>+{lucky_comfort_bonus}</b> chips 安慰獎！\n"
-        has_owner_bonus = True # 確保就算前三名沒玩家馬，只要有其他馬主在，也會發送訊息
-        print(f"ℹ️ [BONUS] 已成功發放安慰獎各 {lucky_comfort_bonus} chips 給馬主們: {consolation_owners}")
+            consolation_mentions.append(f"<a href='tg://user?id={c_owner}'>{c_name}</a>")
+            
+        owner_text += f"\n🎁 <b>【馬主同慶安慰獎】</b>\n恭喜 " + "、".join(consolation_mentions) + f" 獲得 <b>+{lucky_comfort_bonus}</b> chips 安慰獎！\n"
+        has_owner_bonus = True
+        print(f"ℹ️ [BONUS] 已成功發放安慰獎給馬主們: {consolation_owners}")
 
     # 只要有任何一種分紅，就發送群組公告
     if has_owner_bonus:
         bot.send_message(chat_id, owner_text, parse_mode='HTML')
-
+    
+    current_race, race_odds = None, {}
+    if race_id in race_bets: del race_bets[race_id]
 
 # ================== 核心：投注與退款邏輯處理 ==================
 @bot.message_handler(commands=['bet', 'place', 'lin'])
@@ -584,5 +605,5 @@ def help_cmd(message):
     bot.reply_to(message, text, parse_mode='HTML')
 
 # ================== 啟動服務 ==================
-print(f"🏇 {BOT_USERNAME} 已經完全整合升級，24/7 模式準備完畢！啟動監聽中...")
+print(f"🏇 {BOT_USERNAME} 已經全面整合升級！啟動監聽中...")
 bot.infinity_polling()
