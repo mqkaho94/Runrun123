@@ -11,12 +11,11 @@ TOKEN = "7742431712:AAHBx-YjOKHNK6Pq_bDkj7nOOnxEejE_Xo8"
 BOT_USERNAME = "@Run1234567bot"
 bot = telebot.TeleBot(TOKEN)
 
-# 🏇 基礎 7 隻固定馬匹名單（保留第 8 個位置給抽中的專屬馬）
-BASE_HORSES = [
+# 🏇 基礎 1 至 8 號 NPC 固定馬匹名單（只有在無人買馬時作為備用）
+BASE_NPC_HORSES = [
     "⚡1.閃電", "🌪2.黑旋風", "⭐3.幸運星", "🔥4.火麒麟", 
-    "💨5.疾風", "🏅6.黃金戰馬", "🌊7.海嘯"
+    "💨5.疾風", "🏅6.黃金戰馬", "🌊7.海嘯", "🦅8.傲空"
 ]
-DEFAULT_HORSE_8 = "🦅8.傲空" # 若當局無馬主下注，則預設的 8 號馬
 
 # 🔢 名次對應的數字 Emoji 對照表（完賽定格用）
 RANK_EMOJIS = {
@@ -72,38 +71,30 @@ def get_user_horse(user_id):
 
 # 根據馬匹名字反查馬主的 user_id
 def get_owner_by_horse_name(horse_name):
-    clean_name = horse_name.replace("👑8.", "")
+    if "." in horse_name:
+        clean_name = horse_name.split(".", 1)[1]
+    else:
+        clean_name = horse_name
     with sqlite3.connect(DB_FILE) as conn:
         c = conn.cursor()
         c.execute("SELECT user_id FROM users WHERE horse_name=?", (clean_name,))
         row = c.fetchone()
         return row[0] if row else None
 
-# 獲取全伺服器所有擁有專屬馬的馬主 user_id 清單
+# 獲取全伺服器所有「已經購買專屬馬」的馬主資料清單 [(user_id, horse_name), ...]
+def get_all_registered_horses():
+    with sqlite3.connect(DB_FILE) as conn:
+        c = conn.cursor()
+        c.execute("SELECT user_id, horse_name FROM users WHERE has_horse=1 AND horse_name IS NOT NULL")
+        return c.fetchall()
+
+# 獲取全伺服器所有擁有專屬馬的馬主 user_id 清單 (用於分紅發放)
 def get_all_horse_owners():
     with sqlite3.connect(DB_FILE) as conn:
         c = conn.cursor()
         c.execute("SELECT user_id FROM users WHERE has_horse=1")
         rows = c.fetchall()
         return [row[0] for row in rows]
-
-# 🎰 核心隨機抽獎機制：不論多少位馬主下注，用抽籤形式隨機挑選一位上場
-def get_active_custom_horse(active_user_ids):
-    if not active_user_ids:
-        return DEFAULT_HORSE_8
-    
-    with sqlite3.connect(DB_FILE) as conn:
-        c = conn.cursor()
-        # 從這局有下注的人當中，撈出「同時也是馬主」的玩家名單
-        placeholders = ','.join('?' for _ in active_user_ids)
-        c.execute(f"SELECT horse_name FROM users WHERE has_horse=1 AND horse_name IS NOT NULL AND user_id IN ({placeholders})", list(active_user_ids))
-        rows = c.fetchall()
-        
-        # 如果有馬主參與下注（不論幾個人），隨機抽籤一隻馬名代表 8 號上場
-        if rows:
-            chosen_name = random.choice(rows)[0]
-            return f"👑8.{chosen_name}" 
-    return DEFAULT_HORSE_8
 
 init_db()
 
@@ -139,7 +130,7 @@ def buy_horse(message):
     if len(cmd) < 2:
         bot.reply_to(message, 
             f"🛒 **【專屬馬匹拍賣所】**\n\n"
-            f"擁有專屬馬後，只要你在群組參與下注，你的愛駒就有機會代替 8 號馬登場參賽！\n"
+            f"擁有專屬馬後，你不需要投注，愛駒每局都會自動獲得隨機抽籤上場的資格！\n"
             f"💰 售價：**{HORSE_PRICE}** chips\n"
             f"💰 你的餘額：**{chips}** chips\n\n"
             f"👉 **購買請輸入**：\n`/buy 你的馬名` (最多4個字，例如：`/buy 天馬行空`)", 
@@ -162,7 +153,7 @@ def buy_horse(message):
         c.execute("UPDATE users SET has_horse=1, horse_name=? WHERE user_id=?", (horse_name, user_id))
         conn.commit()
 
-    bot.reply_to(message, f"🎉 **恭喜購馬成功！**\n籌碼已扣除 {HORSE_PRICE}。\n您的愛駒 **「{horse_name}」** 已成功登記！今後只要你在群組下注，牠就有機會代表 8 號馬出賽參戰！")
+    bot.reply_to(message, f"🎉 **恭喜購馬成功！**\n籌碼已扣除 {HORSE_PRICE}。\n您的愛駒 **「{horse_name}」** 已成功登記！今後每局賽事牠都會自動在後台參與抽籤補位！")
 
 @bot.message_handler(commands=['rename'])
 def rename_horse(message):
@@ -236,7 +227,7 @@ def daily(message):
 def help_cmd(message):
     text = f"""🏇 **{BOT_USERNAME} 指令列表**
 
-/startrace - 開始新賽事 (自動刷新隨機賠率)
+/startrace - 開始新賽事 (全體擁有馬匹之馬主全自動隨機抽籤補位上場)
 /balance   - 查詢目前籌碼
 /refund    - 開賽前退款當局投注（每場限一次）
 /buy       - <b>【私訊限定】</b>購買專屬馬匹 (3000 chips)
@@ -251,6 +242,7 @@ def help_cmd(message):
 """
     bot.reply_to(message, text, parse_mode='HTML')
 
+# ================== 🎰 核心：開局全自動抽籤補位機制 ==================
 @bot.message_handler(commands=['startrace'])
 def startrace(message):
     global current_race, race_id, race_odds, user_bet_count, user_refund_count, user_actual_deduct, current_horses
@@ -266,10 +258,43 @@ def startrace(message):
     user_refund_count = {}
     user_actual_deduct = {}
     
-    current_horses = BASE_HORSES.copy() + [DEFAULT_HORSE_8]
+    # 🎲 1. 獲取全伺服器所有已註冊的馬匹
+    all_registered = get_all_registered_horses() # 格式: [(uid, '馬名'), ...]
+    
+    chosen_horses_pool = []
+    
+    if len(all_registered) == 0:
+        # 備用方案：若全伺服器都還沒有玩家買馬，則完全使用原本的 NPC 名單
+        chosen_horses_pool = BASE_NPC_HORSES.copy()
+    else:
+        # 如果有玩家馬匹，隨機打亂
+        random.shuffle(all_registered)
+        
+        # 抽取最多 8 匹玩家馬
+        selected_players = all_registered[:8]
+        
+        # 組裝成帶皇冠的馬名
+        for idx, (uid, h_name) in enumerate(selected_players):
+            chosen_horses_pool.append(f"👑{idx + 1}.{h_name}")
+            
+        # 如果玩家買的馬不足 8 匹，剩下的位置用基礎 NPC 填補
+        if len(chosen_horses_pool) < 8:
+            shortage = 8 - len(chosen_horses_pool)
+            npc_backup = BASE_NPC_HORSES[len(chosen_horses_pool):8]
+            for idx, npc_horse in enumerate(npc_backup):
+                # 重新校正號碼前綴
+                actual_lane = len(chosen_horses_pool) + 1
+                clean_npc_name = npc_horse.split('.', 1)[1] if '.' in npc_horse else npc_horse
+                # 保持原 NPC 的特殊符號
+                icon = npc_horse[0] if not npc_horse[0].isdigit() else "🐎"
+                chosen_horses_pool.append(f"{icon}{actual_lane}.{clean_npc_name}")
 
+    # 寫入全域變數
+    current_horses = chosen_horses_pool
+
+    # 🎲 2. 產生隨機賠率並建立排位公示
     text = f"🏇 **第 {race_id} 場賽事開始！** 60秒後開跑 🏁\n\n"
-    text += "【本局獨贏 / 位置 賠率公示】\n"
+    text += "【本局參賽馬匹 ＆ 賠率公示】\n"
     for h in current_horses:
         win_odds = round(random.uniform(2.5, 15.0), 1)
         place_odds = round(win_odds / 2, 1)
@@ -283,7 +308,7 @@ def startrace(message):
     text += "👉 連贏：`/lin 1 2 100` (下注 1 號與 2 號包辦前兩名 100)\n"
     text += "—" * 20 + "\n"
     
-    text += f"\n💡 每人每場限投一次！私訊我 `/buy` 可擁有自訂排位馬。開跑前買錯可輸入 `/refund` 退款重填。\n"
+    text += f"\n💡 馬主免投注！每局開局自動從全服抽籤挑選最多 8 匹直接排位上場！\n"
     
     bot.reply_to(message, text, parse_mode='Markdown')
     threading.Timer(60, lambda: run_race(message.chat.id)).start()
@@ -294,27 +319,6 @@ def run_race(chat_id):
     
     if current_race != "betting":
         return
-
-    active_users = race_bets.get(race_id, {}).keys()
-    
-    # 🎰 呼叫隨機抽獎函數：從本局下注的馬主中，用隨機抽獎形式挑選 1 人上場
-    chosen_custom_horse = get_active_custom_horse(active_users)
-    
-    old_8_horse = current_horses[7]
-    if chosen_custom_horse != old_8_horse:
-        current_horses[7] = chosen_custom_horse
-        race_odds[chosen_custom_horse] = race_odds[old_8_horse]
-        del race_odds[old_8_horse]
-        
-        for uid, bets in race_bets[race_id].items():
-            for idx, bet in enumerate(bets):
-                b_type, h_target, b_amt = bet
-                if b_type in ["bet", "place"] and h_target == old_8_horse:
-                    bets[idx] = (b_type, chosen_custom_horse, b_amt)
-                elif b_type == "lin" and isinstance(h_target, list):
-                    if old_8_horse in h_target:
-                        new_target = [chosen_custom_horse if h == old_8_horse else h for h in h_target]
-                        bets[idx] = (b_type, new_target, b_amt)
 
     current_race = "running" 
     race_msg = bot.send_message(chat_id, "🏁 **鳴槍開跑！馬匹正在激烈交鋒中...** 🏁", parse_mode='Markdown')
@@ -457,7 +461,7 @@ def run_race(chat_id):
     # (A) 先結算前三名大獎
     for rank_idx in range(3):
         target_horse = all_ranks[rank_idx]
-        if "👑8." in target_horse:
+        if "👑" in target_horse: # 只要名稱帶皇冠的馬進前三，即代表有專屬馬得獎
             owner_id = get_owner_by_horse_name(target_horse)
             if owner_id:
                 rank_num = rank_idx + 1
