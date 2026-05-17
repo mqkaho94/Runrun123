@@ -683,17 +683,80 @@ def pay_chips(message):
     update_chips(to_user_id, pay_amount)   # 加錢
 
     # 8. 獲取雙方暱稱並發送成功公告
-    from_username = message.from_user.first_name
-    to_username = message.reply_to_message.from_user.first_name
+# ================== 💸 核心功能：玩家轉帳轉讓系統 (相容群組Tag版) 💸 ==================
+@bot.message_handler(commands=['pay'])
+def pay_chips(message):
+    try:
+        # 1. 檢查是否為回覆訊息
+        if not message.reply_to_message:
+            bot.reply_to(message, "❌ **轉帳失敗！**\n請**回覆（Reply）**你想轉讓籌碼的那位玩家的訊息，並輸入 `/pay 金額`", parse_mode='Markdown')
+            return
 
-    success_text = (
-        f"💸 **【籌碼轉讓成功】** 💸\n"
-        f"🤝 轉出人：<a href='tg://user?id={from_user_id}'>{from_username}</a>\n"
-        f"🎁 接收人：<a href='tg://user?id={to_user_id}'>{to_username}</a>\n"
-        f"💰 轉讓金額：<b>{pay_amount}</b> chips\n\n"
-        f"祝兩位合作愉快，繼續在賽馬場大發利市！ 🏇"
-    )
-    bot.send_message(message.chat.id, success_text, parse_mode='HTML')
+        from_user_id = message.from_user.id
+        
+        # 2. 安全檢查：確保撈得到接收方資料
+        if message.reply_to_message.from_user is None:
+            bot.reply_to(message, "❌ **系統錯誤**：無法讀取該使用者的 Telegram 隱私資料，請請他傳送一般非匿名訊息後再試一次。")
+            return
+            
+        to_user_id = message.reply_to_message.from_user.id
+        
+        # 3. 防止轉帳給自己或 Bot
+        if from_user_id == to_user_id:
+            bot.reply_to(message, "❌ 不能把籌碼轉讓給自己！")
+            return
+
+        if message.reply_to_message.from_user.is_bot:
+            bot.reply_to(message, "❌ 系統無法接收您的個人籌碼轉讓喔！")
+            return
+
+        # 4. 解析金額（過濾群組自動帶入的 @BotUsername）
+        cmd = message.text.split()
+        if len(cmd) < 2:
+            bot.reply_to(message, "❌ 請輸入你想轉讓的金額！\n例如：`/pay 500`", parse_mode='Markdown')
+            return
+
+        raw_amount = cmd[1].strip()
+        
+        # 🌟 核心修正：如果金額字串裡包含 '@'，自動切除 '@' 後面的所有機器人標籤
+        if '@' in raw_amount:
+            raw_amount = raw_amount.split('@')[0]
+
+        try:
+            pay_amount = int(raw_amount)
+            if pay_amount <= 0:
+                bot.reply_to(message, "❌ 轉讓金額必須大於 0！")
+                return
+        except ValueError:
+            bot.reply_to(message, "❌ 金額格式不正確，請輸入整數數字！\n例如：`/pay 1000`")
+            return
+
+        # 5. 檢查轉出方金額
+        from_user_chips = get_chips(from_user_id) 
+        if from_user_chips < pay_amount:
+            bot.reply_to(message, f"❌ 您的籌碼不足！您目前只有 **{from_user_chips}** chips。")
+            return
+
+        # 6. 執行轉帳
+        get_chips(to_user_id) # 初始化接收方
+        update_chips(from_user_id, -pay_amount) 
+        update_chips(to_user_id, pay_amount)   
+
+        from_username = message.from_user.first_name if message.from_user.first_name else "神祕玩家"
+        to_username = message.reply_to_message.from_user.first_name if message.reply_to_message.from_user.first_name else "神祕玩家"
+
+        success_text = (
+            f"💸 **【籌碼轉讓成功】** 💸\n"
+            f"🤝 轉出人：<a href='tg://user?id={from_user_id}'>{from_username}</a>\n"
+            f"🎁 接收人：<a href='tg://user?id={to_user_id}'>{to_username}</a>\n"
+            f"💰 轉讓金額：<b>{pay_amount}</b> chips\n\n"
+            f"祝兩位合作愉快！ 🏇"
+        )
+        bot.send_message(message.chat.id, success_text, parse_mode='HTML')
+
+    except Exception as e:
+        print(f"⚠️ [PAY_ERROR] 原因: {str(e)}")
+        bot.reply_to(message, "❌ 轉帳系統發生未知錯誤。")
 
 # ================== 啟動服務 ==================
 print(f"🏇 {BOT_USERNAME} 已經完全升級成功並啟動監聽...")
