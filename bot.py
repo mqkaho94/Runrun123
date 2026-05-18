@@ -6,8 +6,8 @@ import sqlite3
 import os
 from datetime import date
 
-# ⚠️ 安全提醒：請將你的 Token 填入下方引號內
-TOKEN = "7742431712:AAHBx-YjOKHNK6Pq_bDkj7nOOnxEejE_Xo8"
+# ⚠️ 設定你的 Bot 憑證
+TOKEN = "7953258525:AAH0p9bIorxOfB6hV1P0m7B73Nen7U92b7o"
 BOT_USERNAME = "@Run1234567bot"
 bot = telebot.TeleBot(TOKEN)
 
@@ -581,12 +581,10 @@ def buy_horse(message):
 
     cmd = message.text.split(maxsplit=1)
     if len(cmd) < 2:
-        # 🛠️ 將說明文字修改為 (限1-15個字)
         bot.reply_to(message, f"🛒 **【專屬鼠隻拍賣所】**\n\n💰 售價：**{HORSE_PRICE:,}** 金幣\n💰 你的餘額：**{chips:,}** 金幣\n👉 **購買請輸入**：`/buy 你的鼠名` (限1-15個字)", parse_mode='Markdown')
         return
 
     h_name = cmd[1].strip()
-    # 🛠️ 將長度限制判斷修改為最大 15 個字
     if len(h_name) < 1 or len(h_name) > 15: return
     if chips < HORSE_PRICE: return
 
@@ -606,7 +604,6 @@ def rename_horse(message):
     cmd = message.text.split(maxsplit=1)
     if len(cmd) < 2: return
     new_name = cmd[1].strip()
-    # 🛠️ 將長度限制判斷修改為最大 15 個字
     if len(new_name) < 1 or len(new_name) > 15: return
     with sqlite3.connect(DB_FILE) as conn:
         c = conn.cursor()
