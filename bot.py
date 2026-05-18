@@ -383,13 +383,13 @@ def run_race(chat_id):
                     owner_name = f"馬主({owner_id})"
                 
                 if rank_num == 1:
-                    bonus_chips = random.randint(200000, 300000)
+                    bonus_chips = random.randint(10000, 15000)
                     t_title = "🥇 冠軍"
                 elif rank_num == 2:
-                    bonus_chips = random.randint(50000, 100000)
+                    bonus_chips = random.randint(6000,7500 )
                     t_title = "🥈 亞軍"
                 else:
-                    bonus_chips = random.randint(10000, 30000)
+                    bonus_chips = random.randint(1000, 2000)
                     t_title = "🥉 季軍"
                 
                 update_chips(owner_id, bonus_chips)
@@ -406,7 +406,7 @@ def run_race(chat_id):
 
     # 3. 發放安慰獎
     if consolation_owners:
-        lucky_comfort_bonus = random.randint(3000, 5000)
+        lucky_comfort_bonus = random.randint(300, 500)
         consolation_mentions = []
         
         for c_owner in consolation_owners:
