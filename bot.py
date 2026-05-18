@@ -17,10 +17,10 @@ bot = telebot.TeleBot(TOKEN, threaded=True, num_threads=4)
 # 🔒 定義每日簽到安全鎖 (防並發連擊)
 daily_lock = threading.Lock()
 
-# 🐿️ 基礎 NPC 固定鼠隻名單
+# 🐿️ 基礎 NPC 固定鼠隻名單與其專屬圖標
 BASE_NPC_HORSES = [
-    "⚡1.奧雲狗狗", "🌪2.黑旋風", "⭐3.戰槌巨人", "🔥4.火麒麟", 
-    "💨5.疾風", "🏅6.黃金戰鼠", "🌊7.海嘯", "🦅8.傲空"
+    ("奧雲狗狗", "⚡"), ("黑旋風", "🌪"), ("戰槌巨人", "⭐"), ("火麒麟", "🔥"), 
+    ("疾風", "💨"), ("黃金戰鼠", "🏅"), ("海嘯", "🌊"), ("傲空", "🦅")
 ]
 
 # 🔢 名次對應的數字 Emoji 對照表
@@ -29,36 +29,37 @@ RANK_EMOJIS = {
     5: "5️⃣", 6: "6️⃣", 7: "7️⃣", 8: "8️⃣"
 }
 
-# 🎭 20句全新無厘頭表面搞笑狀態
-FUN_SURFACE_STATUSES = [
-    # 🌟 特殊幸運 Buff 句（隱藏高速機率為 60%，仍有 40% 機率跑第尾）
-    "朋友最多轉圈哈姆共你🐹",
-    "趕住返屋企瀨屎💩",
-    "昨晚拜過黃大仙🙏獲得神祕力量加持",
-    
-    # 💩 趕時間/突發狀況系列 (純外觀)
-    "尋晚飲咗過期維他奶🥛個肚好滾",
-    "出門口踩到舊大狗屎💩霉運當頭",
+# 📋 清單 A：下注排位表顯示的外觀狀態 (共 20 句)
+BETTING_SURFACE_STATUSES = [
+    "鼠神加持🤩高光時刻", "外星物種👽高深莫測", "科技外掛🤖液態金屬", "剛吃興奮劑💊眼神清澈", 
+    "昨晚拜神🙏獲得神秘力量", "祖先托夢👑這局穩贏", "賽道车神🏎️自帶BGM", "氣勢如虹😤單眼單挑", 
+    "氪金玩家💰全身發光", "不可一世😎王者風範",
+    "天生扁平足🦶跑動困難", "沉迷股票📉痛失家產心慌慌", "剛剛小兒麻痺症發作🤒", "霉運當頭🌀烏雲蓋頂", 
+    "體重超標🐷走路都喘氣", "出局邊緣🥀毫無鬥志", "四肢無力🥵缺乏維他命", "中暑邊緣☀️頭暈身熱", 
+    "靈魂出竅👻呆若木雞", "忘記帶大腦🧠全憑本能"
+]
+
+# 🎬 清單 B：開局5秒狀態通報
+RACE_START_STATUSES = [
+    "朋友最多轉圈哈姆共你🐹",             
+    "趕住返屋企瀨屎💩",                   
+    "昨晚拜過黃大仙🙏獲得神祕力量加持",   
+    "尋晚飲咗過期維他奶🥛個肚好滾",       
+    "出門口踩到舊大狗屎💩霉運當頭", 
     "尋晚拉咗十二次斯🚽對腳發軟",
-    "倒瀉咗杯凍檸茶走甜熱辣辣🍹",
-    
-    # 🐹 迷因/童年回憶系列 (純外觀)
-    "以為自己係比卡超⚡自帶十萬伏特",
+    "倒瀉咗杯凍檸茶走甜熱辣辣🍹", 
+    "以為自己係比卡超⚡自帶十萬伏特", 
     "突然叮噹大長篇上身🎒要拯救地球",
-    "阿嬤覺得佢餓👵🏻餵到變咗個波",
-    "智商突然下線🧠全憑生物本能前進",
-    
-    # 💫 傻強/自信心爆棚系列 (純外觀)
+    "阿嬤覺得佢餓👵嫌餵到變咗個波", 
+    "智商突然下線🧠全憑生物本能前進", 
     "食咗誠實豆沙包💊個人好清醒",
-    "氪金玩家💰全身閃爍住人民幣嘅光芒",
-    "眼神充滿殺氣🔪覺得自己係黎明",
+    "氪金玩家💰全身閃爍住人民幣嘅光芒", 
+    "眼神充滿殺氣🔪覺得自己係黎明", 
     "自帶背景音樂BGM🎵氣勢如虹",
-    
-    # 💀 慘不忍睹/狀況外系列 (純外觀)
-    "跛咗隻腳🧑🏻‍🦽要推輪椅代步跑",
-    "成晚通宵打機🎮條黑眼圈去到下巴",
+    "跛咗隻腳🧑嫌推輪椅代步跑", 
+    "成晚通宵打機🎮條黑眼圈去到下巴", 
     "飲咗兩啖假酒🥴左右不分亂打打",
-    "失戀萬念俱灰💔打算跑完去跳海",
+    "失戀萬念毀滅💔打算跑完去跳海", 
     "高山反應🏔️呼吸困難行得好辛苦"
 ]
 
@@ -66,7 +67,7 @@ FUN_SURFACE_STATUSES = [
 DB_FILE = '/data/race.db'
 HORSE_PRICE = 3000  
 
-# ================== 💾 資料庫核心管理 ==================
+# ================== 💾 資料庫管理 ==================
 def init_db():
     try: os.makedirs(os.path.dirname(DB_FILE), exist_ok=True)
     except: pass
@@ -79,9 +80,22 @@ def init_db():
             chips INTEGER DEFAULT 1000,
             last_daily TEXT,
             has_horse INTEGER DEFAULT 0,
-            horse_name TEXT DEFAULT NULL
+            horse_name TEXT DEFAULT NULL,
+            horse_first INTEGER DEFAULT 0,
+            horse_second INTEGER DEFAULT 0,
+            horse_third INTEGER DEFAULT 0,
+            horse_losses INTEGER DEFAULT 0,
+            last_luck_date TEXT DEFAULT NULL
         );
         ''')
+        
+        c.execute("PRAGMA table_info(users)")
+        columns = [col[1] for col in c.fetchall()]
+        if "horse_first" not in columns: c.execute("ALTER TABLE users ADD COLUMN horse_first INTEGER DEFAULT 0")
+        if "horse_second" not in columns: c.execute("ALTER TABLE users ADD COLUMN horse_second INTEGER DEFAULT 0")
+        if "horse_third" not in columns: c.execute("ALTER TABLE users ADD COLUMN horse_third INTEGER DEFAULT 0")
+        if "horse_losses" not in columns: c.execute("ALTER TABLE users ADD COLUMN horse_losses INTEGER DEFAULT 0")
+        if "last_luck_date" not in columns: c.execute("ALTER TABLE users ADD COLUMN last_luck_date TEXT DEFAULT NULL")
         conn.commit()
 
 def get_chips(user_id):
@@ -104,10 +118,11 @@ def update_chips(user_id, amount):
 def get_user_horse(user_id):
     with sqlite3.connect(DB_FILE) as conn:
         c = conn.cursor()
-        c.execute("SELECT has_horse, horse_name FROM users WHERE user_id=?", (user_id,))
+        c.execute("SELECT has_horse, horse_name, horse_first, horse_second, horse_third, horse_losses FROM users WHERE user_id=?", (user_id,))
         row = c.fetchone()
-        if row: return {"has_horse": row[0], "horse_name": row[1]}
-        return {"has_horse": 0, "horse_name": None}
+        if row: 
+            return {"has_horse": row[0], "horse_name": row[1], "first": row[2], "second": row[3], "third": row[4], "losses": row[5]}
+        return {"has_horse": 0, "horse_name": None, "first": 0, "second": 0, "third": 0, "losses": 0}
 
 def get_owner_by_horse_name(horse_name):
     clean_name = horse_name
@@ -124,6 +139,18 @@ def get_all_registered_horses():
         c.execute("SELECT user_id, horse_name FROM users WHERE has_horse=1 AND horse_name IS NOT NULL")
         return c.fetchall()
 
+def get_all_users_for_luck():
+    with sqlite3.connect(DB_FILE) as conn:
+        c = conn.cursor()
+        c.execute("SELECT user_id, username, has_horse, horse_name, last_luck_date FROM users")
+        return c.fetchall()
+
+def update_luck_date(user_id, today_str):
+    with sqlite3.connect(DB_FILE) as conn:
+        c = conn.cursor()
+        c.execute("UPDATE users SET last_luck_date=? WHERE user_id=?", (today_str, user_id))
+        conn.commit()
+
 def sync_username(user_id, username):
     if not username: return
     with sqlite3.connect(DB_FILE) as conn:
@@ -131,9 +158,18 @@ def sync_username(user_id, username):
         c.execute("UPDATE users SET username=? WHERE user_id=?", (username.lower(), user_id))
         conn.commit()
 
+def record_detailed_result(user_id, rank_type):
+    with sqlite3.connect(DB_FILE) as conn:
+        c = conn.cursor()
+        if rank_type == 1: c.execute("UPDATE users SET horse_first = horse_first + 1 WHERE user_id=?", (user_id,))
+        elif rank_type == 2: c.execute("UPDATE users SET horse_second = horse_second + 1 WHERE user_id=?", (user_id,))
+        elif rank_type == 3: c.execute("UPDATE users SET horse_third = horse_third + 1 WHERE user_id=?", (user_id,))
+        else: c.execute("UPDATE users SET horse_losses = horse_losses + 1 WHERE user_id=?", (user_id,))
+        conn.commit()
+
 init_db()
 
-# ================== 賽事全域控制變數 ==================
+# ================== 賽事與氣運全域變數 ==================
 current_race = None    
 race_id = None
 race_bets = {}   
@@ -141,12 +177,13 @@ race_odds = {}
 current_horses = []   
 horse_statuses = {}  
 scheduled_disasters = {}  
+active_horse_luck = {}
 
 user_bet_count = {}     
 user_refund_count = {}  
 user_actual_deduct = {} 
 
-# ================== 💸 核心功能：玩家轉帳系統 ==================
+# ================== 💸 轉帳系統 ==================
 @bot.message_handler(commands=['pay'])
 def pay_chips(message):
     try:
@@ -209,10 +246,10 @@ def pay_chips(message):
         bot.send_message(message.chat.id, success_text, parse_mode='HTML')
     except: pass
 
-# ================== 🎰 核心：開局與排位 ==================
+# ================== 🎰 開局排位 + 🔮 氣運系統 ==================
 @bot.message_handler(commands=['startrun'])
 def startrun(message):
-    global current_race, race_id, race_odds, user_bet_count, user_refund_count, user_actual_deduct, current_horses, horse_statuses, scheduled_disasters
+    global current_race, race_id, race_odds, user_bet_count, user_refund_count, user_actual_deduct, current_horses, horse_statuses, scheduled_disasters, active_horse_luck
     if current_race:
         bot.reply_to(message, "⚠️ 已有賽事進行中！")
         return
@@ -223,6 +260,7 @@ def startrun(message):
     race_odds = {}
     horse_statuses = {}
     scheduled_disasters = {} 
+    active_horse_luck = {}
     user_bet_count = {}
     user_refund_count = {}
     user_actual_deduct = {}
@@ -232,9 +270,8 @@ def startrun(message):
     final_8_horses = []  
     
     if len(all_registered) == 0:
-        for npc in BASE_NPC_HORSES:
-            clean_npc = npc.split('.', 1)[1] if '.' in npc else npc
-            final_8_horses.append((None, clean_npc, npc[0] if not npc[0].isdigit() else "🐿️"))
+        for npc_name, npc_icon in BASE_NPC_HORSES:
+            final_8_horses.append((None, npc_name, npc_icon))
     else:
         random.shuffle(all_registered)
         selected_players = all_registered[:8]
@@ -245,10 +282,8 @@ def startrun(message):
             available_npcs = BASE_NPC_HORSES.copy()
             random.shuffle(available_npcs)
             for i in range(shortage):
-                npc_horse = available_npcs[i]
-                clean_npc_name = npc_horse.split('.', 1)[1] if '.' in npc_horse else npc_horse
-                icon = npc_horse[0] if not npc_horse[0].isdigit() else "🐿️"
-                final_8_horses.append((None, clean_npc_name, icon))
+                npc_name, npc_icon = available_npcs[i]
+                final_8_horses.append((None, npc_name, npc_icon))
 
     random.shuffle(final_8_horses)
     chosen_horses_pool = []
@@ -257,7 +292,41 @@ def startrun(message):
         chosen_horses_pool.append(f"{icon}{lane_num}.{h_name}")
     current_horses = chosen_horses_pool
 
-    # 🛠 稀有突發歹運事件抽籤
+    luck_announcements = []
+    all_users = get_all_users_for_luck()
+    today_str = date.today().isoformat()
+    
+    for u_id, u_name, has_h, h_name, last_luck_date in all_users:
+        if last_luck_date == today_str:
+            continue
+
+        roll = random.random()
+        if roll < 0.005:  
+            update_luck_date(u_id, today_str) 
+            try: nickname = bot.get_chat_member(message.chat.id, u_id).user.first_name
+            except: nickname = f"@{u_name}" if u_name else f"玩家({u_id})"
+            
+            matching_horse = next((h for h in current_horses if h_name and h_name in h), None)
+            if matching_horse and random.random() < 0.50:
+                active_horse_luck[matching_horse] = "good"
+                luck_announcements.append(f"🍀 <b>【氣運爆發 • 今日好運】</b>\n鼠主 <b>{nickname}</b> 獲得愛鼠之神眷顧！本局參賽愛鼠 <b>{matching_horse}</b> 獲得<b>【幸運值 +5% 跑速與暴走加成】</b>！🚀 (每日限一次)")
+            else:
+                update_chips(u_id, 3000)
+                luck_announcements.append(f"🍀 <b>【氣運爆發 • 今日好運】</b>\n愛鼠之人 <b>{nickname}</b> 突發好運！獲得 <b>+3,000</b> 金幣已存入餘額！💰 (每日限一次)")
+
+        elif roll >= 0.005 and roll < 0.010:  
+            update_luck_date(u_id, today_str) 
+            try: nickname = bot.get_chat_member(message.chat.id, u_id).user.first_name
+            except: nickname = f"@{u_name}" if u_name else f"玩家({u_id})"
+            
+            matching_horse = next((h for h in current_horses if h_name and h_name in h), None)
+            if matching_horse and random.random() < 0.50:
+                active_horse_luck[matching_horse] = "bad"
+                luck_announcements.append(f"💀 <b>【霉運當頭 • 今日歹運】</b>\n鼠主 <b>{nickname}</b> 驚逢黑仔期！本局參賽愛鼠 <b>{matching_horse}</b> 遭遇<b>【Debuff/死亡意外率 +5%】</b>！⚠️ (每日限一次)")
+            else:
+                update_chips(u_id, -3000)
+                luck_announcements.append(f"💀 <b>【霉運當頭 • 今日歹運】</b>\n玩家 <b>{nickname}</b> 在街上遇到食環署執法！因隨地亂倒鼠糧被<b>罰款 $3,000</b>，已從餘額扣除！💸 (每日限一次)")
+
     if random.random() < 0.04:
         disaster_count = random.choice([1, 2])
         unlucky_horses = random.sample(current_horses, disaster_count)
@@ -266,62 +335,112 @@ def startrun(message):
             reason = random.choice(["🐱【被貓吃掉❌】", "🪤【踩到鼠夾❌】"])
             scheduled_disasters[uh] = {"trigger_at": trigger_point, "reason": reason}
 
-    text = f"🐿️ **第 {race_id} 場賽事開始！** 60秒後開跑 🏁\n\n"
-    text += "【本局參賽鼠隻 ＆ 隨機排位表】\n"
-    
     for h in current_horses:
-        # 🎨 隨機抽取搞笑表面狀態
-        surface_txt = random.choice(FUN_SURFACE_STATUSES)
+        if active_horse_luck.get(h) == "bad" and h not in scheduled_disasters:
+            if random.random() < 0.05:
+                trigger_point = random.uniform(5.0, 85.0)
+                reason = random.choice(["🐱【黑仔遇到野貓吃掉❌】", "🪤【歹運踩中特大鼠夾❌】"])
+                scheduled_disasters[h] = {"trigger_at": trigger_point, "reason": reason}
 
-        # 🧠 核心邏輯：微調指定 3 句的隱藏 Buff 機率（60% 高速 / 40% 中慢速）
-        if surface_txt in ["朋友最多轉圈哈姆共你🐹", "趕住返屋企瀨屎💩", "昨晚拜過黃大仙🙏獲得神祕力量加持"]:
-            if random.random() < 0.60:
-                status_score = random.choice([9, 10])  # 60% 機率：高速（大勇）
-            else:
-                status_score = random.randint(1, 8)   # 40% 機率：普通或落後（有可能第尾）
-        else:
-            status_score = random.randint(1, 10)      # 其他 17 句：維持完全均等隨機
+    available_statuses = BETTING_SURFACE_STATUSES.copy()
+    random.shuffle(available_statuses)
+    round_statuses = available_statuses[:7]
+    if random.random() < 0.50: round_statuses.append(random.choice(round_statuses))  
+    else: round_statuses.append(available_statuses[7]) 
+    random.shuffle(round_statuses)  
 
-        # 🛠️ 根據後台決定的分數給予實際的時間範圍
-        if status_score >= 9:
-            base_time_range = (25.0, 35.0)  
-        elif status_score >= 4:
-            base_time_range = (40.0, 55.0)  
-        else:
-            base_time_range = (60.0, 80.0)  
-            
+    text = f"賽鼠 **【賽鼠會 - 第 {race_id} 場】** 🐿️\n🏆 本場盃賽：【鼠王爭霸戰】\n\n"
+    
+    for idx, h in enumerate(current_horses):
+        lane_num = idx + 1
+        surface_txt = round_statuses[idx] 
+
+        is_hot = any(keyword in surface_txt for keyword in ["鼠神", "外星", "科技", "拜神", "賽道", "氪金", "不可一世"])
+        is_cold = any(keyword in surface_txt for keyword in ["小兒麻痺", "出局邊緣", "沉迷股票", "體重超標"])
+        has_surface_buff = is_cold or (surface_txt in ["鼠神加持🤩高光時刻", "外星物種👽高深莫測"])
+
         horse_statuses[h] = {
-            "surface_text": surface_txt, 
-            "target_time": random.uniform(*base_time_range),
+            "betting_text": surface_txt,      
+            "start_text": "",                 
+            "target_time": 50.0,  
             "dead_reason": None,
             "freeze_steps": 0,       
-            "freeze_reason": ""      
+            "freeze_reason": "",
+            "is_buff_carrier": has_surface_buff,  
+            "is_debuff_carrier": False,            
+            "buff_active": False,
+            "debuff_active": False      
         }
 
-        win_odds = round(random.uniform(2.5, 15.0), 1)
+        if is_hot: win_odds = round(random.uniform(2.5, 3.6), 1); class_icon = "🔥"
+        elif is_cold: win_odds = round(random.uniform(10.0, 15.0), 1); class_icon = "💀"
+        else: win_odds = round(random.uniform(4.0, 8.5), 1); class_icon = "🎲"
+
         place_odds = round(win_odds / 2, 1)
+        if place_odds < 1.1: place_odds = 1.1  
         race_odds[h] = win_odds  
         
-        text += f"{h} 📢【{surface_txt}】\n   ➡️ 獨贏: *{win_odds}x* | 位置: *{place_odds}x*\n"
+        icon = h[0]
+        name_part = h.split('.', 1)[1]
+        
+        luck_tag = " 🍀[好運加成]" if active_horse_luck.get(h) == "good" else " 💀[歹運纏身]" if active_horse_luck.get(h) == "bad" else ""
+        text += f"{lane_num} {name_part}{icon}{luck_tag} 🎪 {surface_txt}\n"
+        text += f"    {class_icon} 獨贏: {win_odds}倍 | 位置: {place_odds}倍\n"
 
     text += "\n" + "—" * 20 + "\n"
     text += "💰 **【下注方式】** /win 號碼 金額 | /pla 號碼 金額 | /ww 號碼1 號碼2 金額\n"
     
+    if luck_announcements:
+        bot.send_message(message.chat.id, "🔮 <b>【每局天星氣運星象通報】</b> 🔮\n" + "‾"*25 + "\n" + "\n\n".join(luck_announcements), parse_mode='HTML')
+        time.sleep(1)
+
     bot.reply_to(message, text, parse_mode='Markdown')
     threading.Timer(60, lambda: run_race(message.chat.id)).start()
 
-# ================== 核心：動態模擬賽鼠直播 ==================
+# ================== 直播與戰績結算 ==================
 def run_race(chat_id):
-    global current_race, race_id, race_odds, race_bets, current_horses, horse_statuses, scheduled_disasters
+    global current_race, race_id, race_odds, race_bets, current_horses, horse_statuses, scheduled_disasters, active_horse_luck
     
     if current_race != "betting": return
     current_race = "running" 
     
-    # 賽前選手狀態通報
+    debuff_pool = RACE_START_STATUSES[3:]
+    current_round_debuff_sentences = random.sample(debuff_pool, 5)
+
     status_intro = f"📋 **第 {race_id} 場賽事 - 賽前選手狀態通報** 📋\n" + "‾" * 25 + "\n"
     for h in current_horses:
-        surf_txt = horse_statuses[h]["surface_text"]
-        status_intro += f"{h} ➡️ **{surf_txt}**\n"
+        start_txt = random.choice(RACE_START_STATUSES)
+        horse_statuses[h]["start_text"] = start_txt  
+        
+        luck_desc = ""
+        if active_horse_luck.get(h) == "good": luck_desc = " 🍀(今日幸運加速)"
+        elif active_horse_luck.get(h) == "bad": luck_desc = " 💀(今日意外率提升)"
+        
+        status_intro += f"{h} ➡️ **{start_txt}**{luck_desc}\n"
+        
+        if start_txt in current_round_debuff_sentences:
+            horse_statuses[h]["is_debuff_carrier"] = True
+
+        if horse_statuses[h]["is_buff_carrier"] and horse_statuses[h]["is_debuff_carrier"]:
+            if random.random() < 0.50:
+                horse_statuses[h]["is_buff_carrier"] = False
+                horse_statuses[h]["is_debuff_carrier"] = False
+
+        if start_txt in ["朋友最多轉圈哈姆共你🐹", "趕住返屋企瀨屎💩", "昨晚拜過黃大仙🙏獲得神祕力量加持"]:
+            if random.random() < 0.60: base_time_range = (22.0, 32.0) 
+            else: base_time_range = (40.0, 55.0) 
+        else:
+            status_score = random.randint(1, 10)
+            if status_score >= 9: base_time_range = (28.0, 38.0)  
+            elif status_score >= 4: base_time_range = (42.0, 58.0)  
+            else: base_time_range = (62.0, 80.0)
+                
+        final_target_time = random.uniform(*base_time_range)
+        if active_horse_luck.get(h) == "good":
+            final_target_time *= 0.95 
+            
+        horse_statuses[h]["target_time"] = final_target_time
+
     status_intro += "\n⏱ _狀態展示中，比賽將於 5 秒後正式鳴槍！_"
     
     race_msg = bot.send_message(chat_id, status_intro, parse_mode='Markdown')
@@ -342,7 +461,6 @@ def run_race(chat_id):
     while (len(finished_horses) < 3) and (len(finished_horses) + len(dead_horses) < len(current_horses)):
         time.sleep(1.0)  
         now = time.time()
-        
         current_second_reports = {}
         
         for h in current_horses:
@@ -378,24 +496,33 @@ def run_race(chat_id):
                 horse_statuses[h]["freeze_steps"] -= 1 
                 continue
 
-            move_roll = random.randint(1, 10)
-            if move_roll >= 9:
-                step_modifier = 2.0
-                action_text = "⚡ 快步推進"
-            elif move_roll >= 4:
-                step_modifier = 1.0
-                action_text = "✨ 穩步向前"
+            buff_check_chance = 0.055 if active_horse_luck.get(h) == "good" else 0.005
+            if (horse_statuses[h]["is_buff_carrier"] or active_horse_luck.get(h) == "good") and not horse_statuses[h]["buff_active"]:
+                if random.random() < buff_check_chance: horse_statuses[h]["buff_active"] = True
+
+            debuff_check_chance = 0.055 if active_horse_luck.get(h) == "bad" else 0.005
+            if (horse_statuses[h]["is_debuff_carrier"] or active_horse_luck.get(h) == "bad") and not horse_statuses[h]["debuff_active"]:
+                if random.random() < debuff_check_chance: horse_statuses[h]["debuff_active"] = True
+
+            if horse_statuses[h]["debuff_active"]:
+                step_modifier = 0.1
+                action_text = "⚠️ 狀態大下滑！腳軟慢跑中... 🐢" if active_horse_luck.get(h) != "bad" else "💀 今日歹運發作！雙腳麻痺抽筋慢爬... 🐢"
+            elif horse_statuses[h]["buff_active"]:
+                step_modifier = 3.5  
+                action_text = "✨ 🚀 隱藏潛能突發暴走！全速大躍進！！" if active_horse_luck.get(h) != "good" else "🍀 ✨ 🚀 今日好運加持氣運爆發！老鼠開外掛化身火箭！！"
+                horse_statuses[h]["buff_active"] = False 
             else:
-                step_modifier = 0.5 
-                action_text = "💤 慢步推進"
+                move_roll = random.randint(1, 10)
+                if move_roll >= 9: step_modifier = 2.0; action_text = "⚡ 快步推進"
+                elif move_roll >= 4: step_modifier = 1.0; action_text = "✨ 穩步向前"
+                else: step_modifier = 0.5; action_text = "💤 慢步推進"
                 
             current_distance[h] += (speeds[h] * 1.0) * step_modifier + random.uniform(-0.2, 0.2)
             if current_distance[h] < 0: current_distance[h] = 0
             
             if current_distance[h] >= TOTAL_DISTANCE:
                 current_distance[h] = TOTAL_DISTANCE
-                if h not in finished_horses: 
-                    finished_horses.append(h)
+                if h not in finished_horses: finished_horses.append(h)
                 current_second_reports[h] = f"🏁 剛剛衝線了！(第 {finished_horses.index(h) + 1} 名)"
             else:
                 current_second_reports[h] = action_text
@@ -420,15 +547,12 @@ def run_race(chat_id):
             action_reports = []
             for h in current_horses:
                 msg_status = current_second_reports.get(h, "未知")
-                if horse_statuses[h]["dead_reason"] is not None:
-                    rank_str = "淘汰"
-                elif h in finished_horses:
-                    rank_str = f"第 {finished_horses.index(h) + 1} 名"
+                if horse_statuses[h]["dead_reason"] is not None: rank_str = "淘汰"
+                elif h in finished_horses: rank_str = f"第 {finished_horses.index(h) + 1} 名"
                 else:
-                    higher_count = sum(1 for competitor in current_horses if competitor != h and horse_statuses[competitor]["dead_reason"] is None and competitor not in finished_horses and current_distance[competitor] > current_distance[h])
+                    higher_count = sum(1 for comp in current_horses if comp != h and horse_statuses[comp]["dead_reason"] is None and comp not in finished_horses and current_distance[comp] > current_distance[h])
                     current_rank = len(finished_horses) + 1 + higher_count
                     rank_str = f"第 {current_rank} 名"
-                
                 action_reports.append(f"🏃 [{rank_str}] {h} ➡️ `[{msg_status}]`")
             
             dynamic_text += "—" * 15 + "\n"
@@ -469,17 +593,14 @@ def run_race(chat_id):
             result += f"{medal} 第 {i} 名：{h} (獨贏 {race_odds[h]}x)\n"
     bot.send_message(chat_id, result, parse_mode='Markdown')
     
-    # 派彩邏輯
     if race_id in race_bets and len(finished_horses) > 0:
         payout_message = "🎉 **派彩結果** 🎉\n\n"
         has_winner = False
         for uid, bets in race_bets[race_id].items():
             win_amount = 0
             for b_type, horses, amt in bets:
-                if b_type == "win" and winner and horses == winner:
-                    win_amount += int(amt * race_odds[winner])
-                elif b_type == "pla" and horses in finished_horses[:3]:
-                    win_amount += int(amt * (race_odds[horses] / 2))
+                if b_type == "win" and winner and horses == winner: win_amount += int(amt * race_odds[winner])
+                elif b_type == "pla" and horses in finished_horses[:3]: win_amount += int(amt * (race_odds[horses] / 2))
                 elif b_type == "ww" and winner and second and isinstance(horses, list) and set(horses) == set([winner, second]):
                     win_amount += int(amt * (race_odds[winner] * race_odds[second]))
             if win_amount > 0:
@@ -493,7 +614,17 @@ def run_race(chat_id):
     else:
         bot.send_message(chat_id, "壓注全空！本局沒有人中獎 💸")
 
-    # ================== 🐿️ 鼠主分紅與安慰獎 ==================
+    for h in current_horses:
+        if "👑" in h: 
+            owner_id = get_owner_by_horse_name(h)
+            if owner_id:
+                owner_id = int(owner_id)
+                rank_idx = all_ranks.index(h)
+                if horse_statuses[h]["dead_reason"] is None and rank_idx < 3:
+                    record_detailed_result(owner_id, rank_type=(rank_idx + 1))
+                else:
+                    record_detailed_result(owner_id, rank_type=4)
+
     owner_text = "✨ <b>【本局鼠主專利分紅】</b> ✨\n"
     has_owner_bonus = False
     consolation_owners = [] 
@@ -508,15 +639,9 @@ def run_race(chat_id):
                 try: owner_name = bot.get_chat_member(chat_id, owner_id).user.first_name
                 except: owner_name = f"鼠主({owner_id})"
                 
-                if rank_num == 1:
-                    bonus_chips = random.randint(10000, 20000)
-                    t_title = "🥇 冠軍"
-                elif rank_num == 2:
-                    bonus_chips = random.randint(6000, 7500)
-                    t_title = "🥈 亞軍"
-                else:
-                    bonus_chips = random.randint(1000, 2000)
-                    t_title = "🥉 季軍"
+                if rank_num == 1: bonus_chips = random.randint(10000, 20000); t_title = "🥇 冠軍"
+                elif rank_num == 2: bonus_chips = random.randint(6000, 7500); t_title = "🥈 亞軍"
+                else: bonus_chips = random.randint(1000, 2000); t_title = "🥉 季軍"
                 
                 update_chips(owner_id, bonus_chips)
                 owner_text += f"恭喜專屬鼠 <b>{target_horse}</b> 榮獲{t_title}！\n鼠主 <b>{owner_name}</b> 獲得分紅大獎 <b>+{bonus_chips:,}</b> 金幣 💰\n"
@@ -541,94 +666,158 @@ def run_race(chat_id):
 
     if has_owner_bonus: bot.send_message(chat_id, owner_text, parse_mode='HTML')
     
-    current_race, race_odds, horse_statuses, scheduled_disasters = None, {}, {}, {}
+    current_race, race_odds, horse_statuses, scheduled_disasters, active_horse_luck = None, {}, {}, {}, {}
     if race_id in race_bets: del race_bets[race_id]
 
-# ================== 核心：投注與退款邏輯 ==================
+# ================== 📊 排行榜功能 ==================
+@bot.message_handler(commands=['rk'])
+def show_leaderboard(message):
+    try:
+        sync_username(message.from_user.id, message.from_user.username)
+        with sqlite3.connect(DB_FILE) as conn:
+            c = conn.cursor()
+            c.execute("""
+                SELECT username, horse_name, horse_first, horse_second, horse_third, horse_losses, user_id 
+                FROM users WHERE has_horse = 1 AND horse_name IS NOT NULL
+            """)
+            rows = c.fetchall()
+            
+        if not rows:
+            bot.reply_to(message, "📊 **【賽鼠戰績風雲榜】**\n目前還沒有任何專屬賽鼠的比賽記錄！", parse_mode='Markdown')
+            return
+
+        def get_sort_key(row): return (row[2], row[3], row[4])
+        sorted_rows = sorted(rows, key=get_sort_key, reverse=True)
+
+        leaderboard_text = "📊 <b>【賽鼠殿堂 - 官方戰績榮譽榜】</b> 📊\n"
+        leaderboard_text += "‾" * 30 + "\n"
+        leaderboard_text += "💡 <i>(排序規律：依據老鼠【冠軍數】由高至低進行排名)</i>\n\n"
+
+        for idx, row in enumerate(sorted_rows, 1):
+            uname, h_name, firsts, seconds, thirds, losses, uid = row
+            total_races = firsts + seconds + thirds + losses
+            medal = "👑 🥇" if idx == 1 else "🥈" if idx == 2 else "🥉" if idx == 3 else f"[{idx}]"
+            try: nickname = bot.get_chat_member(message.chat.id, uid).user.first_name
+            except: nickname = f"@{uname}" if uname else f"玩家({uid})"
+
+            leaderboard_text += f"{medal} <b>{h_name}</b> (鼠主: {nickname})\n"
+            leaderboard_text += f"    🏆 榮譽：🥇<code>{firsts} 冠</code> | 🥈<code>{seconds} 亞</code> | 🥉<code>{thirds} 季</code>\n"
+            leaderboard_text += f"    📉 損益：❌<code>{losses} 輸</code> (總出賽次數: {total_races} 場)\n\n"
+
+        bot.send_message(message.chat.id, leaderboard_text, parse_mode='HTML')
+    except Exception as e: print(f"排行榜出錯: {e}")
+
+# ================== 核心：投注與退款邏輯 (🔧 格式錯誤修正版) ==================
 @bot.message_handler(commands=['win', 'pla', 'ww'])
 def place_bet(message):
     global current_race, race_id, race_odds, user_bet_count, user_actual_deduct, current_horses
+    
+    # 錯誤提示模板
+    error_help_text = "❌ **投注格式錯誤！**\n👉 獨贏：`/win [編號] [金額]`\n👉 位置：`/pla [編號] [金額]`\n👉 連贏：`/ww [A] [B] [金額]`"
+    
     if current_race != "betting":
         bot.reply_to(message, "❌ 目前非投注時間！")
         return
 
     user_id = message.from_user.id
     sync_username(user_id, message.from_user.username)
-    
     if user_bet_count.get(user_id, 0) >= 1:
         bot.reply_to(message, "❌ 您本場已投注過！更改請先輸入 /refund 退款。")
         return
 
-    error_help_text = "❌ **投注格式錯誤！**\n👉 獨贏：`/win [編號] [金額]`\n👉 位置：`/pla [編號] [金額]`\n👉 連贏：`/ww [A] [B] [金額]`"
+    # 1. 整理清乾淨文字
+    text_clean = message.text
+    if f"{BOT_USERNAME}" in text_clean: 
+        text_clean = text_clean.replace(f"{BOT_USERNAME}", "")
+    elif f"@run1234567bot" in text_clean.lower(): 
+        text_clean = text_clean.lower().replace("@run1234567bot", "")
 
+    cmd = text_clean.split()
+    if len(cmd) < 2:
+        bot.reply_to(message, error_help_text, parse_mode='Markdown')
+        return
+
+    bet_type = cmd[0][1:].lower()  # win, pla, ww
+    chips = get_chips(user_id)
+
+    # 2. 進入核心參數驗證層（精確抓取解析出錯）
     try:
-        text_clean = message.text
-        if f"{BOT_USERNAME}" in text_clean: text_clean = text_clean.replace(f"{BOT_USERNAME}", "")
-        elif f"@run1234567bot" in text_clean.lower(): text_clean = text_clean.lower().replace("@run1234567bot", "")
-
-        cmd = text_clean.split()
-        bet_type = cmd[0][1:]  
-        chips = get_chips(user_id)
-
-        # 1. 處理不同投注種類的參數與計算
         if bet_type in ["win", "pla"]:
-            if len(cmd) < 3: return
+            if len(cmd) < 3:
+                bot.reply_to(message, error_help_text, parse_mode='Markdown')
+                return
+            
             horse_num = int(cmd[1])
             amount_str = cmd[2]
-            if horse_num < 1 or horse_num > len(current_horses): return
-            selected_horse_full = current_horses[horse_num-1]
             
-            # 清理出純鼠名 (移除圖標與編號)
+            # 檢查編號範圍
+            if horse_num < 1 or horse_num > len(current_horses):
+                bot.reply_to(message, f"❌ 找不到該號碼！本局只有 1 至 {len(current_horses)} 號賽鼠。", parse_mode='Markdown')
+                return
+                
+            selected_horse_full = current_horses[horse_num-1]
             horse_name_clean = selected_horse_full.split('.', 1)[1] if '.' in selected_horse_full else selected_horse_full
             horse_display = f"（{horse_num}號）（{horse_name_clean}）"
-            
-            # 計算單純賠率與預期總獎金
             odds_val = race_odds[selected_horse_full] if bet_type == "win" else round(race_odds[selected_horse_full] / 2, 1)
 
         elif bet_type == "ww":
-            if len(cmd) < 4: return
+            if len(cmd) < 4:
+                bot.reply_to(message, error_help_text, parse_mode='Markdown')
+                return
+                
             h1, h2 = int(cmd[1]), int(cmd[2])
             amount_str = cmd[3]
-            if h1 == h2 or min(h1, h2) < 1 or max(h1, h2) > len(current_horses): return
-            selected_horse_full = [current_horses[h1-1], current_horses[h2-1]]
             
+            if h1 == h2 or min(h1, h2) < 1 or max(h1, h2) > len(current_horses):
+                bot.reply_to(message, f"❌ 號碼選擇不合法！請選擇兩個不同的編號 (1-{len(current_horses)})。", parse_mode='Markdown')
+                return
+                
+            selected_horse_full = [current_horses[h1-1], current_horses[h2-1]]
             h1_clean = selected_horse_full[0].split('.', 1)[1] if '.' in selected_horse_full[0] else selected_horse_full[0]
             h2_clean = selected_horse_full[1].split('.', 1)[1] if '.' in selected_horse_full[1] else selected_horse_full[1]
             horse_display = f"（{h1},{h2}號）（{h1_clean} & {h2_clean}）"
-            
             odds_val = round(race_odds[selected_horse_full[0]] * race_odds[selected_horse_full[1]], 1)
+        else:
+            return # 唔係投注命令就忽略
 
-        # 2. 計算籌碼金額與福利金補貼扣款
-        bet_amount = int(chips * int(amount_str.replace("%", "")) / 100) if "%" in amount_str else int(amount_str)
-        if bet_amount <= 0: return
+        # 計算下注金額 (支援百分比 %)
+        if "%" in amount_str:
+            pct = int(amount_str.replace("%", ""))
+            bet_amount = int(chips * pct / 100)
+        else:
+            bet_amount = int(amount_str)
 
+        if bet_amount <= 0:
+            bot.reply_to(message, "❌ 投注金額必須大於 0 金幣！", parse_mode='Markdown')
+            return
+
+        # 信用額度與餘額扣除邏輯
         credit = 100
         actual_deduct = max(0, bet_amount - credit)
-        if actual_deduct > chips: return
+        if actual_deduct > chips:
+            bot.reply_to(message, f"❌ 金幣餘額不足！你目前只有 `{chips:,}` 金幣。", parse_mode='Markdown')
+            return
 
-        # 3. 實際執行帳戶扣款與紀錄
+        # 寫入資料庫與變數
         update_chips(user_id, -actual_deduct)
         user_actual_deduct[user_id] = actual_deduct 
         user_bet_count[user_id] = 1
 
-        if user_id not in race_bets[race_id]: race_bets[race_id][user_id] = []
+        if user_id not in race_bets[race_id]: 
+            race_bets[race_id][user_id] = []
         race_bets[race_id][user_id].append((bet_type, selected_horse_full, bet_amount))
 
-        # 4. 翻譯投注抬頭
         type_title = "獨贏" if bet_type == "win" else "位置" if bet_type == "pla" else "連贏"
-        
-        # 5. 計算總共可收金額 (本金 * 賠率)
         potential_win = int(bet_amount * odds_val)
 
-        # ✨ 嚴格遵循玩家指定的回覆格式
-        success_msg = f"（{type_title}）成功 🎊 {horse_display}\n" \
-                      f"投注幾錢：{bet_amount:,} 金幣\n" \
-                      f"幾多倍：{odds_val} 倍\n" \
-                      f"贏出總數可以收幾多：{potential_win:,} 金幣"
-                      
+        success_msg = f"（{type_title}）成功 🎊 {horse_display}\n投注幾錢：{bet_amount:,} 金幣\n幾多倍：{odds_val} 倍\n贏出總數可以收幾多：{potential_win:,} 金幣"
         bot.reply_to(message, success_msg, parse_mode='Markdown')
-    except:
+
+    except (ValueError, IndexError):
+        # 只要文字轉數字出事，或者陣列越界，百分之百係格式錯，立刻彈出提示
         bot.reply_to(message, error_help_text, parse_mode='Markdown')
+    except Exception as e:
+        print(f"投注未知系統錯誤: {e}")
 
 @bot.message_handler(commands=['refund'])
 def refund_bet(message):
@@ -643,34 +832,28 @@ def refund_bet(message):
     user_refund_count[user_id] = 1
     bot.reply_to(message, f"✅ 退款成功！實退錢包金額：`{refund_amount:,}` 金幣", parse_mode='Markdown')
 
-# ================== 🤖 每日福利指令 (安全防點擊穿透鎖定版) ==================
+# ================== 每日福利 ==================
 @bot.message_handler(commands=['daily'])
 def daily(message):
     user_id = message.from_user.id
     sync_username(user_id, message.from_user.username)
     today = date.today().isoformat()  
     
-    # 🔒 啟用多線程排隊安全鎖，強制讓同時到達的連按請求排隊處理
     with daily_lock:
         with sqlite3.connect(DB_FILE) as conn:
             c = conn.cursor()
             c.execute("SELECT last_daily FROM users WHERE user_id=?", (user_id,))
             last = c.fetchone()
-            
-            # 如果資料庫裡面的時間已經是今天，代表剛剛排在前面的連擊請求已經領過了
             if last and last[0] == today:
                 bot.reply_to(message, "❌ 你今天已經領過每日獎勵！明天再來吧。")
                 return
-                
-            # 如果今天還沒領過，立刻在鎖內部把今天日期刷進資料庫（原子性鎖定）
             c.execute("UPDATE users SET last_daily=? WHERE user_id=?", (today, user_id))
             conn.commit()
             
-        # 帳目發放移入排隊保護範圍中，確保只會被執行到精確的一次
         update_chips(user_id, 3000)
         bot.reply_to(message, "✅ **每日簽到成功！** +3000 金幣 💰")
 
-# ================== 🤖 其他功能指令 ==================
+# ================== 其他功能指令 ==================
 @bot.message_handler(commands=['buy'])
 def buy_horse(message):
     if message.chat.type != "private":
@@ -682,7 +865,7 @@ def buy_horse(message):
     horse_info = get_user_horse(user_id)
 
     if horse_info["has_horse"] == 1:
-        bot.reply_to(message, f"🐿️ 您已擁有一隻愛鼠：**{horse_info['horse_name']}**", parse_mode='Markdown')
+        bot.reply_to(message, f"🐿️ 您已擁有一隻愛鼠：**{horse_info['horse_name']}**\n📊 目前戰績：`🥇{horse_info['first']} 冠 | 🥈{horse_info['second']} 亞 | 🥉{horse_info['third']} 季 | ❌{horse_info['losses']} 輸`", parse_mode='Markdown')
         return
 
     cmd = message.text.split(maxsplit=1)
@@ -696,9 +879,9 @@ def buy_horse(message):
     update_chips(user_id, -HORSE_PRICE)
     with sqlite3.connect(DB_FILE) as conn:
         c = conn.cursor()
-        c.execute("UPDATE users SET has_horse=1, horse_name=? WHERE user_id=?", (h_name, user_id))
+        c.execute("UPDATE users SET has_horse=1, horse_name=?, horse_first=0, horse_second=0, horse_third=0, horse_losses=0 WHERE user_id=?", (h_name, user_id))
         conn.commit()
-    bot.reply_to(message, f"🎉 專屬愛鼠 **「{h_name}」** 登記成功！")
+    bot.reply_to(message, f"🎉 專屬愛鼠 **「{h_name}」** 登記成功！戰績已初始化。")
 
 @bot.message_handler(commands=['rename'])
 def rename_horse(message):
@@ -737,11 +920,12 @@ def help_cmd(message):
 /pay - <b>【回覆訊息】</b>轉讓金幣
 /buy       - <b>【私訊】</b>購買專屬鼠隻 ({HORSE_PRICE:,} 金幣)
 /rename    - <b>【私訊】</b>自訂愛鼠修改名字
+/rk        - <b>查看賽鼠官方勝負戰績風雲榜 📊</b>
 
 【投注方式】/win 號碼 金額 | /pla 號碼 金額 | /ww 號碼1 號碼2 金幣
 """
     bot.reply_to(message, text, parse_mode='HTML')
 
 # ================== 啟動服務 ==================
-print(f"🐿️ {BOT_USERNAME} 安全高並發防刷鎖定版已成功啟動！")
+print(f"🐿️ {BOT_USERNAME} 【投注錯誤提示完美修正版】啟動！")
 bot.infinity_polling(timeout=20, long_polling_timeout=10)
