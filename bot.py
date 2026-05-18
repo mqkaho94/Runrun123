@@ -1,4 +1,5 @@
 import telebot
+from telebot import util  # 引入優化工具
 import random
 import time
 import threading
@@ -9,7 +10,9 @@ from datetime import date
 # ⚠️ 設定你的 Bot 憑證
 TOKEN = "7742431712:AAHBx-YjOKHNK6Pq_bDkj7nOOnxEejE_Xo8"
 BOT_USERNAME = "@Run1234567bot"
-bot = telebot.TeleBot(TOKEN)
+
+# 🚀 【優化 1】啟用多線程 ThreadPool，防止多人同時輸入時當機塞車
+bot = telebot.TeleBot(TOKEN, threaded=True, num_threads=4)
 
 # 🐿️ 基礎 NPC 固定鼠隻名單
 BASE_NPC_HORSES = [
@@ -23,13 +26,16 @@ RANK_EMOJIS = {
     5: "5️⃣", 6: "6️⃣", 7: "7️⃣", 8: "8️⃣"
 }
 
-# 💾 資料庫持久化路徑設定 (⚠️ 指向 Railway 掛載的硬碟路徑)
+# 💾 資料庫持久化路徑設定 (若找不到 Volume 可以改成 'race.db')
 DB_FILE = '/data/race.db'
 HORSE_PRICE = 3000  # 購買專屬鼠隻所需金幣
 
 # ================== 💾 資料庫核心管理 ==================
 def init_db():
-    os.makedirs(os.path.dirname(DB_FILE), exist_ok=True)
+    try:
+        os.makedirs(os.path.dirname(DB_FILE), exist_ok=True)
+    except:
+        pass
     with sqlite3.connect(DB_FILE) as conn:
         c = conn.cursor()
         c.execute('''
@@ -283,7 +289,7 @@ def run_race(chat_id):
     TOTAL_DISTANCE = 100.0  
     DISPLAY_LENGTH = 15     
     
-    target_times = {h: random.uniform(10.0, 60.0) for h in current_horses}
+    target_times = {h: random.uniform(10.0, 45.0) for h in current_horses}
     speeds = {h: TOTAL_DISTANCE / target_times[h] for h in current_horses}
     current_distance = {h: 0.0 for h in current_horses}
     finished_horses = []  
@@ -292,19 +298,20 @@ def run_race(chat_id):
     last_refresh_time = start_time
     
     while len(finished_horses) < 3:
-        time.sleep(0.1)  
+        time.sleep(0.2)  
         now = time.time()
         elapsed = now - start_time
         
         for h in current_horses:
             if current_distance[h] < TOTAL_DISTANCE:
-                current_distance[h] = elapsed * speeds[h] + random.uniform(-0.2, 0.2)
+                current_distance[h] = elapsed * speeds[h] + random.uniform(-0.3, 0.3)
                 if current_distance[h] < 0: current_distance[h] = 0
                 if current_distance[h] >= TOTAL_DISTANCE:
                     current_distance[h] = TOTAL_DISTANCE
                     if h not in finished_horses: finished_horses.append(h)
                         
-        if now - last_refresh_time >= 2.0 or len(finished_horses) >= 3:
+        # 🚀 【優化 2】將直播刷新頻率降到 3.5 秒一次，避開 Telegram 官方封鎖頻率限制
+        if now - last_refresh_time >= 3.5 or len(finished_horses) >= 3:
             last_refresh_time = now
             dynamic_text = f"🐿️ **第 {race_id} 場賽事 現場直播** 🏁\n" + "‾" * 25 + "\n"
             for h in current_horses:
@@ -318,7 +325,8 @@ def run_race(chat_id):
                 dynamic_text += f"{h}{status}\n`{track_str}`\n\n"
             try:
                 bot.edit_message_text(dynamic_text, chat_id, race_msg.message_id, parse_mode='Markdown')
-            except: pass
+            except Exception as e:
+                print(f"直播刷新跳過: {e}")
 
     remaining = [h for h in current_horses if h not in finished_horses]
     remaining.sort(key=lambda h: current_distance[h], reverse=True)
@@ -463,7 +471,7 @@ def place_bet(message):
             text_clean = text_clean.lower().replace("@run1234567bot", "")
 
         cmd = text_clean.split()
-        bet_type = cmd[0][1:]  # 將會取得 win, pla, 或是 ww
+        bet_type = cmd[0][1:]  
         chips = get_chips(user_id)
 
         if bet_type in ["win", "pla"]:
@@ -564,7 +572,7 @@ def refund_bet(message):
     user_refund_count[user_id] = 1
     bot.reply_to(message, f"✅ 退款成功！實退錢包金額：`{refund_amount:,}` 金幣", parse_mode='Markdown')
 
-# ================== 🤖 其他玩家/私訊專屬功能指令 ==================
+# ================== 🤖 其他功能指令 ==================
 @bot.message_handler(commands=['buy'])
 def buy_horse(message):
     if message.chat.type != "private":
@@ -655,4 +663,6 @@ def help_cmd(message):
 
 # ================== 啟動服務 ==================
 print(f"🐿️ {BOT_USERNAME} 指令全新精簡版已啟動！")
-bot.infinity_polling()
+
+# 🚀 【優化 3】加上長輪詢超時設定，防止斷線後不自動重連
+bot.infinity_polling(timeout=20, long_polling_timeout=10)
