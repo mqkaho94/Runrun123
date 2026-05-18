@@ -1,5 +1,5 @@
 import telebot
-from telebot import util  # 引入優化工具
+from telebot import util  
 import random
 import time
 import threading
@@ -11,12 +11,12 @@ from datetime import date
 TOKEN = "7742431712:AAHBx-YjOKHNK6Pq_bDkj7nOOnxEejE_Xo8"
 BOT_USERNAME = "@Run1234567bot"
 
-# 🚀 【優化 1】啟用多線程 ThreadPool，防止多人同時輸入時當機塞車
+# 🚀 啟用多線程 ThreadPool，防止多人同時輸入時當機塞車
 bot = telebot.TeleBot(TOKEN, threaded=True, num_threads=4)
 
 # 🐿️ 基礎 NPC 固定鼠隻名單
 BASE_NPC_HORSES = [
-    "⚡1.奧雲狗狗", "🌪2.黑旋風", "⭐3.戰槌巨人", "🔥4.火麒麟", 
+    "⚡1.狗狗", "🌪2.黑旋風", "⭐3.戰槌巨人", "🔥4.火麒麟", 
     "💨5.疾風", "🏅6.黃金戰鼠", "🌊7.海嘯", "🦅8.傲空"
 ]
 
@@ -107,6 +107,7 @@ race_id = None
 race_bets = {}   
 race_odds = {}  
 current_horses = []   
+horse_statuses = {}  # 儲存每隻鼠的狀態文字
 
 user_bet_count = {}     
 user_refund_count = {}  
@@ -196,8 +197,8 @@ def pay_chips(message):
 
         success_text = (
             f"💸 **【金幣轉讓成功】** 💸\n"
-            f"🤝 轉出人：<a href='tg://user?id={from_user_id}'>{from_username}</a>\n"
-            f"🎁 接收人：<a href='tg://user?id={to_user_id}'>{to_username}</a>\n"
+            f"🤝 轉出人：{from_username}\n"
+            f"🎁 接收人：{to_username}\n"
             f"💰 轉讓金額：<b>{pay_amount:,}</b> 金幣\n\n"
             f"祝兩位合作愉快，繼續在賽鼠場大發利市！ 🐿️"
         )
@@ -210,7 +211,7 @@ def pay_chips(message):
 # ================== 🎰 核心：開局與排位 ==================
 @bot.message_handler(commands=['startrun'])
 def startrun(message):
-    global current_race, race_id, race_odds, user_bet_count, user_refund_count, user_actual_deduct, current_horses
+    global current_race, race_id, race_odds, user_bet_count, user_refund_count, user_actual_deduct, current_horses, horse_statuses
     if current_race:
         bot.reply_to(message, "⚠️ 已有賽事進行中！")
         return
@@ -219,6 +220,7 @@ def startrun(message):
     race_id = f"R{int(time.time())}"
     race_bets[race_id] = {}
     race_odds = {}
+    horse_statuses = {}
     user_bet_count = {}
     user_refund_count = {}
     user_actual_deduct = {}
@@ -260,12 +262,24 @@ def startrun(message):
     current_horses = chosen_horses_pool
 
     text = f"🐿️ **第 {race_id} 場賽事開始！** 60秒後開跑 🏁\n\n"
-    text += "【本局參賽鼠隻 ＆ 隨機排位賠率】\n"
+    text += "【本局參賽鼠隻、狀態 ＆ 隨機排位賠率】\n"
+    
     for h in current_horses:
+        # 🎲 隨機抽取狀態（只保留文字，不顯示分數）
+        status_score = random.randint(1, 10)
+        if status_score >= 9:
+            status_text = "🔥 狀態大勇"
+        elif status_score >= 4:
+            status_text = "✨ 狀態正常"
+        else:
+            status_text = "💤 狀態低迷"
+            
+        horse_statuses[h] = {"text": status_text}
+
         win_odds = round(random.uniform(2.5, 15.0), 1)
         place_odds = round(win_odds / 2, 1)
         race_odds[h] = win_odds  
-        text += f"{h}  ➡️  獨贏: *{win_odds}x* | 位置: *{place_odds}x*\n"
+        text += f"{h} ({status_text})  ➡️  獨贏: *{win_odds}x* | 位置: *{place_odds}x*\n"
 
     text += "\n" + "—" * 20 + "\n"
     text += "💰 **【下注範例】**\n"
@@ -280,7 +294,7 @@ def startrun(message):
 
 # ================== 核心：動態模擬賽鼠直播 ==================
 def run_race(chat_id):
-    global current_race, race_id, race_odds, race_bets, current_horses
+    global current_race, race_id, race_odds, race_bets, current_horses, horse_statuses
     
     if current_race != "betting": return
     current_race = "running" 
@@ -289,13 +303,22 @@ def run_race(chat_id):
     TOTAL_DISTANCE = 100.0  
     DISPLAY_LENGTH = 15     
     
-    target_times = {h: random.uniform(10.0, 45.0) for h in current_horses}
-    speeds = {h: TOTAL_DISTANCE / target_times[h] for h in current_horses}
+    # ⏱️ 基礎目標完賽時間隨機擴展為 20秒 到 90秒 之間
+    base_target_times = {h: random.uniform(20.0, 90.0) for h in current_horses}
+    speeds = {h: TOTAL_DISTANCE / base_target_times[h] for h in current_horses}
+    
     current_distance = {h: 0.0 for h in current_horses}
     finished_horses = []  
     
     start_time = time.time()
     last_refresh_time = start_time
+    
+    # 📢 賽事下方固定說明的狀況提示文字（不顯示具體快跑慢跑的係數）
+    FOOTER_STATUS_INFO = (
+        "💡 **【本局賽場即時通報】**\n"
+        "⚠️ 注意：現場環境多變！參賽鼠隻的初始狀態**不代表**最終勝負！\n"
+        "🎲 目前賽道每一步都在進行「現場隨機抽籤」，所有參賽鼠皆有機率爆發衝刺或體力不支！"
+    )
     
     while len(finished_horses) < 3:
         time.sleep(0.2)  
@@ -304,13 +327,26 @@ def run_race(chat_id):
         
         for h in current_horses:
             if current_distance[h] < TOTAL_DISTANCE:
-                current_distance[h] = elapsed * speeds[h] + random.uniform(-0.3, 0.3)
+                # 🎲 任何狀態的賽鼠，在每一步前進時都由「現場抽籤」決定當下的前進步伐！
+                move_roll = random.randint(1, 10)
+                if move_roll >= 9:
+                    # 快跑
+                    step_modifier = 2.0
+                elif move_roll >= 4:
+                    # 正常跑
+                    step_modifier = 1.0
+                else:
+                    # 慢跑
+                    step_modifier = 0.5
+                    
+                # 動態增加距離
+                current_distance[h] += (speeds[h] * 0.2) * step_modifier + random.uniform(-0.1, 0.1)
+                
                 if current_distance[h] < 0: current_distance[h] = 0
                 if current_distance[h] >= TOTAL_DISTANCE:
                     current_distance[h] = TOTAL_DISTANCE
                     if h not in finished_horses: finished_horses.append(h)
                         
-        # 🚀 【優化 2】將直播刷新頻率降到 3.5 秒一次，避開 Telegram 官方封鎖頻率限制
         if now - last_refresh_time >= 3.5 or len(finished_horses) >= 3:
             last_refresh_time = now
             dynamic_text = f"🐿️ **第 {race_id} 場賽事 現場直播** 🏁\n" + "‾" * 25 + "\n"
@@ -322,7 +358,13 @@ def run_race(chat_id):
                 if h in finished_horses:
                     r = finished_horses.index(h) + 1
                     status = " 🥇【冠軍】" if r==1 else " 🥈【亞軍】" if r==2 else " 🥉【季軍】"
-                dynamic_text += f"{h}{status}\n`{track_str}`\n\n"
+                
+                st_txt = horse_statuses[h]["text"]
+                dynamic_text += f"{h} ({st_txt}){status}\n`{track_str}`\n\n"
+            
+            # ⏬ 拼接賽場最下方的抽籤狀況說明
+            dynamic_text += "—" * 15 + "\n" + FOOTER_STATUS_INFO
+            
             try:
                 bot.edit_message_text(dynamic_text, chat_id, race_msg.message_id, parse_mode='Markdown')
             except Exception as e:
@@ -340,7 +382,11 @@ def run_race(chat_id):
         progress = min(max(progress, 0), DISPLAY_LENGTH)
         track_str = "🏁 " + "_" * (DISPLAY_LENGTH - progress) + rank_emoji + "_" * progress
         status = " 🥇【冠軍】" if final_rank==1 else " 🥈【亞軍】" if final_rank==2 else " 🥉【季軍】" if final_rank==3 else ""
-        final_text += f"{h}{status}\n`{track_str}`\n\n"
+        
+        st_txt = horse_statuses[h]["text"]
+        final_text += f"{h} ({st_txt}){status}\n`{track_str}`\n\n"
+    
+    final_text += "—" * 15 + "\n" + FOOTER_STATUS_INFO
     try:
         bot.edit_message_text(final_text, chat_id, race_msg.message_id, parse_mode='Markdown')
     except: pass
@@ -349,7 +395,8 @@ def run_race(chat_id):
     result = "🏆 **最終賽果名次結果** 🏆\n\n"
     for i, h in enumerate(all_ranks, 1):
         medal = "🥇" if i==1 else "🥈" if i==2 else "🥉" if i==3 else "🏁"
-        result += f"{medal} 第 {i} 名：{h} (獨贏 {race_odds[h]}x)\n"
+        st_txt = horse_statuses[h]["text"]
+        result += f"{medal} 第 {i} 名：{h} ({st_txt}) (獨贏 {race_odds[h]}x)\n"
     bot.send_message(chat_id, result, parse_mode='Markdown')
     
     if race_id in race_bets:
@@ -366,7 +413,12 @@ def run_race(chat_id):
                     win_amount += int(amt * (race_odds[winner] * race_odds[second]))
             if win_amount > 0:
                 update_chips(uid, win_amount)
-                payout_message += f"✅ 玩家 <a href='tg://user?id={uid}'>{uid}</a> 贏得 <b>{win_amount:,}</b> 金幣\n"
+                try:
+                    member = bot.get_chat_member(chat_id, uid)
+                    p_name = member.user.first_name
+                except:
+                    p_name = f"玩家({uid})"
+                payout_message += f"✅ 玩家 <b>{p_name}</b> 贏得 <b>{win_amount:,}</b> 金幣\n"
                 has_winner = True
         if has_winner: bot.send_message(chat_id, payout_message, parse_mode='HTML')
         else: bot.send_message(chat_id, "壓注全空！本局沒有人中獎 💸")
@@ -402,7 +454,7 @@ def run_race(chat_id):
                     t_title = "🥉 季軍"
                 
                 update_chips(owner_id, bonus_chips)
-                owner_text += f"恭喜專屬鼠 <b>{target_horse}</b> 榮獲{t_title}！\n鼠主 <a href='tg://user?id={owner_id}'>{owner_name}</a> 獲得分紅大獎 <b>+{bonus_chips:,}</b> 金幣 💰\n"
+                owner_text += f"恭喜專屬鼠 <b>{target_horse}</b> 榮獲{t_title}！\n鼠主 <b>{owner_name}</b> 獲得分紅大獎 <b>+{bonus_chips:,}</b> 金幣 💰\n"
                 has_owner_bonus = True
 
     # 2. 搜集第 4~8 名的專屬鼠主
@@ -426,7 +478,7 @@ def run_race(chat_id):
             except Exception:
                 c_name = f"鼠主({c_owner})"
             
-            consolation_mentions.append(f"<a href='tg://user?id={c_owner}'>{c_name}</a> (<b>+{lucky_comfort_bonus:,}</b>)")
+            consolation_mentions.append(f"<b>{c_name}</b> (<b>+{lucky_comfort_bonus:,}</b>)")
             
         owner_text += f"\n🎁 <b>【鼠主同慶安慰獎】</b>\n本局上場遺憾落敗（第4-8名）的鼠主： " + "、".join(consolation_mentions) + f" 獲得安慰分紅！\n"
         has_owner_bonus = True
@@ -434,7 +486,7 @@ def run_race(chat_id):
     if has_owner_bonus:
         bot.send_message(chat_id, owner_text, parse_mode='HTML')
     
-    current_race, race_odds = None, {}
+    current_race, race_odds, horse_statuses = None, {}, {}
     if race_id in race_bets: del race_bets[race_id]
 
 # ================== 核心：投注與退款邏輯 ==================
@@ -505,7 +557,7 @@ def place_bet(message):
                 bot.reply_to(message, "❌ 投注失敗：連贏的兩隻鼠不能是同一個編號！", parse_mode='Markdown')
                 return
             if min(h1, h2) < 1 or max(h1, h2) > len(current_horses): 
-                bot.reply_to(message, f"❌ 投注失敗：找不到對應的鼠隻編號！目前只有 1 到 {len(current_horses)} 號鼠。", parse_mode='Markdown')
+                bot.reply_to(message, f"❌ 投注失敗：找不到對應的鼠隻編號！目前戶有 1 到 {len(current_horses)} 號鼠。", parse_mode='Markdown')
                 return
             selected_horse_full = [current_horses[h1-1], current_horses[h2-1]]
 
@@ -653,7 +705,7 @@ def help_cmd(message):
 /startrun - 開始新賽事
 /money   - 查詢目前金幣
 /refund    - 開賽前退款當局投注
-/pay - <b>【回覆訊息 或 標記@Username】</b>轉讓金幣
+/pay - <b>【回覆訊息】</b>轉讓金幣
 /buy       - <b>【私訊】</b>購買專屬鼠隻 ({HORSE_PRICE:,} 金幣)
 /rename    - <b>【私訊】</b>自訂愛鼠修改名字
 
@@ -663,6 +715,4 @@ def help_cmd(message):
 
 # ================== 啟動服務 ==================
 print(f"🐿️ {BOT_USERNAME} 指令全新精簡版已啟動！")
-
-# 🚀 【優化 3】加上長輪詢超時設定，防止斷線後不自動重連
 bot.infinity_polling(timeout=20, long_polling_timeout=10)
