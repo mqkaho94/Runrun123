@@ -14,6 +14,9 @@ BOT_USERNAME = "@Run1234567bot"
 # 🚀 啟用多線程 ThreadPool
 bot = telebot.TeleBot(TOKEN, threaded=True, num_threads=4)
 
+# 🔒 定義每日簽到安全鎖 (防並發連擊)
+daily_lock = threading.Lock()
+
 # 🐿️ 基礎 NPC 固定鼠隻名單
 BASE_NPC_HORSES = [
     "⚡1.奧雲狗狗", "🌪2.黑旋風", "⭐3.戰槌巨人", "🔥4.火麒麟", 
@@ -640,27 +643,32 @@ def refund_bet(message):
     user_refund_count[user_id] = 1
     bot.reply_to(message, f"✅ 退款成功！實退錢包金額：`{refund_amount:,}` 金幣", parse_mode='Markdown')
 
-# ================== 🤖 每日福利指令 (限制每日一次) ==================
+# ================== 🤖 每日福利指令 (安全防點擊穿透鎖定版) ==================
 @bot.message_handler(commands=['daily'])
 def daily(message):
     user_id = message.from_user.id
     sync_username(user_id, message.from_user.username)
     today = date.today().isoformat()  
     
-    with sqlite3.connect(DB_FILE) as conn:
-        c = conn.cursor()
-        c.execute("SELECT last_daily FROM users WHERE user_id=?", (user_id,))
-        last = c.fetchone()
-        
-        if last and last[0] == today:
-            bot.reply_to(message, "❌ 你今天已經領過每日獎勵！明天再來吧。")
-            return
+    # 🔒 啟用多線程排隊安全鎖，強制讓同時到達的連按請求排隊處理
+    with daily_lock:
+        with sqlite3.connect(DB_FILE) as conn:
+            c = conn.cursor()
+            c.execute("SELECT last_daily FROM users WHERE user_id=?", (user_id,))
+            last = c.fetchone()
             
-        c.execute("UPDATE users SET last_daily=? WHERE user_id=?", (today, user_id))
-        conn.commit()
-        
-    update_chips(user_id, 3000)
-    bot.reply_to(message, "✅ **每日簽到成功！** +3000 金幣 💰")
+            # 如果資料庫裡面的時間已經是今天，代表剛剛排在前面的連擊請求已經領過了
+            if last and last[0] == today:
+                bot.reply_to(message, "❌ 你今天已經領過每日獎勵！明天再來吧。")
+                return
+                
+            # 如果今天還沒領過，立刻在鎖內部把今天日期刷進資料庫（原子性鎖定）
+            c.execute("UPDATE users SET last_daily=? WHERE user_id=?", (today, user_id))
+            conn.commit()
+            
+        # 帳目發放移入排隊保護範圍中，確保只會被執行到精確的一次
+        update_chips(user_id, 3000)
+        bot.reply_to(message, "✅ **每日簽到成功！** +3000 金幣 💰")
 
 # ================== 🤖 其他功能指令 ==================
 @bot.message_handler(commands=['buy'])
@@ -735,5 +743,5 @@ def help_cmd(message):
     bot.reply_to(message, text, parse_mode='HTML')
 
 # ================== 啟動服務 ==================
-print(f"🐿️ {BOT_USERNAME} 投注格式更新版已成功啟動！")
+print(f"🐿️ {BOT_USERNAME} 安全高並發防刷鎖定版已成功啟動！")
 bot.infinity_polling(timeout=20, long_polling_timeout=10)
