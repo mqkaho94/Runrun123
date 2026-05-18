@@ -7,7 +7,7 @@ import os
 from datetime import date
 
 # ⚠️ 設定你的 Bot 憑證
-TOKEN = "7953258525:AAH0p9bIorxOfB6hV1P0m7B73Nen7U92b7o"
+TOKEN = "7742431712:AAHBx-YjOKHNK6Pq_bDkj7nOOnxEejE_Xo8"
 BOT_USERNAME = "@Run1234567bot"
 bot = telebot.TeleBot(TOKEN)
 
