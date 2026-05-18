@@ -7,7 +7,7 @@ import os
 from datetime import date
 
 # ⚠️ 安全提醒：請將你的 Token 填入下方引號內
-TOKEN = "YOUR_TELEGRAM_BOT_TOKEN"
+TOKEN = "7742431712:AAHBx-YjOKHNK6Pq_bDkj7nOOnxEejE_Xo8"
 BOT_USERNAME = "@Run1234567bot"
 bot = telebot.TeleBot(TOKEN)
 
