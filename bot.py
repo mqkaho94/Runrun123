@@ -16,7 +16,7 @@ bot = telebot.TeleBot(TOKEN, threaded=True, num_threads=4)
 
 # 🐿️ 基礎 NPC 固定鼠隻名單
 BASE_NPC_HORSES = [
-    "⚡1.狗狗", "🌪2.黑旋風", "⭐3.戰槌巨人", "🔥4.火麒麟", 
+    "⚡1.奧雲狗狗", "🌪2.黑旋風", "⭐3.戰槌巨人", "🔥4.火麒麟", 
     "💨5.疾風", "🏅6.黃金戰鼠", "🌊7.海嘯", "🦅8.傲空"
 ]
 
@@ -234,7 +234,6 @@ def startrun(message):
     text += "【本局參賽鼠隻 ＆ 隨機排位賠率】\n"
     
     for h in current_horses:
-        # 🛠 狀態決定基礎完賽預估時間（馬力天花板分開抽籤）
         status_score = random.randint(1, 10)
         if status_score >= 9:
             status_text = "🔥 狀態大勇"
@@ -284,7 +283,6 @@ def run_race(chat_id):
     TOTAL_DISTANCE = 100.0  
     DISPLAY_LENGTH = 15     
     
-    # 計算基底每秒速度
     speeds = {h: TOTAL_DISTANCE / horse_statuses[h]["target_time"] for h in current_horses}
     current_distance = {h: 0.0 for h in current_horses}
     
@@ -298,70 +296,79 @@ def run_race(chat_id):
         time.sleep(1.0)  
         now = time.time()
         
-        action_reports = []
+        # 建立一個暫存字典，用來收集「這一秒」所有賽鼠各自計算出來的文字狀態
+        current_second_reports = {}
         
         for h in current_horses:
-            if current_distance[h] < TOTAL_DISTANCE and horse_statuses[h]["dead_reason"] is None:
-                
-                # 🛠 A. 檢查是否踩到本局預設的稀有歹運陷阱
-                if h in scheduled_disasters:
-                    if current_distance[h] >= scheduled_disasters[h]["trigger_at"]:
-                        disaster_reason = scheduled_disasters[h]["reason"]
-                        horse_statuses[h]["dead_reason"] = disaster_reason
-                        dead_horses.append(h)
-                        action_reports.append(f"{h}: {disaster_reason}")
-                        continue
-                
-                # 🛠 B. 優先檢查是否正處於發呆/吃芝士狀態中
-                if horse_statuses[h]["freeze_steps"] > 0:
-                    reason = horse_statuses[h]["freeze_reason"]
-                    sec_left = horse_statuses[h]["freeze_steps"]
-                    action_reports.append(f"{h}: {reason} (剩餘 {sec_left} 秒) 🕒")
-                    horse_statuses[h]["freeze_steps"] -= 1 
-                    continue 
-                
-                # 🧀 C. 正常發呆或吃芝士事件機率 (5% 隨機發生)
-                if random.random() < 0.05:
-                    freeze_sec = random.randint(3, 5) 
-                    freeze_type = random.choice(["發呆停止步行 💤", "地上撿到芝士吃兩口 🧀"])
-                    horse_statuses[h]["freeze_steps"] = freeze_sec
-                    horse_statuses[h]["freeze_reason"] = freeze_type
-                    
-                    action_reports.append(f"{h}: {freeze_type} (剩餘 {freeze_sec} 秒) 🕒")
-                    horse_statuses[h]["freeze_steps"] -= 1 
-                    continue
-                
-                # 🎲 D. 核心修改：每秒推進倍數完全獨立抽籤！（不顯示倍數文字）
-                move_roll = random.randint(1, 10)
-                if move_roll >= 9:
-                    step_modifier = 2.0
-                elif move_roll >= 4:
-                    step_modifier = 1.0
-                else:
-                    step_modifier = 0.5 
-                    
-                # 新的行進公式 = 狀態基底速度 * 這一秒獨立抽到的前進倍數
-                current_distance[h] += (speeds[h] * 1.0) * step_modifier + random.uniform(-0.2, 0.2)
-                
-                if current_distance[h] < 0: current_distance[h] = 0
-                if current_distance[h] >= TOTAL_DISTANCE:
-                    current_distance[h] = TOTAL_DISTANCE
-                    if h not in finished_horses: finished_horses.append(h)
-                    action_reports.append(f"{h}: 🏁 已衝線 (第 {finished_horses.index(h) + 1} 名)")
-                else:
-                    # 💡 【修改點】正常的行進狀態不再放入 action_reports 文字列表，保持面板簡潔
-                    pass
-            
-            elif horse_statuses[h]["dead_reason"] is not None:
-                action_reports.append(f"{h}: {horse_statuses[h]['dead_reason']}")
-            else:
+            # 1. 檢查是否已經淘汰 (死掉了)
+            if horse_statuses[h]["dead_reason"] is not None:
+                current_second_reports[h] = f"❌ {horse_statuses[h]['dead_reason']}"
+                continue
+
+            # 2. 檢查是否早已衝線完賽
+            if current_distance[h] >= TOTAL_DISTANCE:
                 r = finished_horses.index(h) + 1
-                action_reports.append(f"{h}: 🏁 已衝線 (第 {r} 名)")
+                current_second_reports[h] = f"🏁 已衝線 (第 {r} 名)"
+                continue
+
+            # A. 檢查是否踩到本局預設的稀有歹運陷阱
+            if h in scheduled_disasters and current_distance[h] >= scheduled_disasters[h]["trigger_at"]:
+                disaster_reason = scheduled_disasters[h]["reason"]
+                horse_statuses[h]["dead_reason"] = disaster_reason
+                dead_horses.append(h)
+                current_second_reports[h] = f"❌ {disaster_reason}"
+                continue
+            
+            # B. 優先檢查是否正處於發呆/吃芝士狀態中
+            if horse_statuses[h]["freeze_steps"] > 0:
+                reason = horse_statuses[h]["freeze_reason"]
+                sec_left = horse_statuses[h]["freeze_steps"]
+                current_second_reports[h] = f"⚠️ {reason} (剩餘 {sec_left} 秒) 🕒"
+                horse_statuses[h]["freeze_steps"] -= 1 
+                continue 
+            
+            # C. 正常發呆或吃芝士事件隨機爆發 (5% 機率)
+            if random.random() < 0.05:
+                freeze_sec = random.randint(3, 5) 
+                freeze_type = random.choice(["發呆停止步行 💤", "地上撿到芝士吃兩口 🧀"])
+                horse_statuses[h]["freeze_steps"] = freeze_sec
+                horse_statuses[h]["freeze_reason"] = freeze_type
+                
+                current_second_reports[h] = f"⚠️ {freeze_type} (剩餘 {freeze_sec} 秒) 🕒"
+                horse_statuses[h]["freeze_steps"] -= 1 
+                continue
+
+            # D. 每秒獨立抽籤前進步數（快步/穩步/慢步）
+            move_roll = random.randint(1, 10)
+            if move_roll >= 9:
+                step_modifier = 2.0
+                action_text = "⚡ 快步推進"
+            elif move_roll >= 4:
+                step_modifier = 1.0
+                action_text = "✨ 穩步向前"
+            else:
+                step_modifier = 0.5 
+                action_text = "💤 慢步推進"
+                
+            # 計算位移
+            current_distance[h] += (speeds[h] * 1.0) * step_modifier + random.uniform(-0.2, 0.2)
+            if current_distance[h] < 0: current_distance[h] = 0
+            
+            # 檢查位移後是否剛好衝線
+            if current_distance[h] >= TOTAL_DISTANCE:
+                current_distance[h] = TOTAL_DISTANCE
+                if h not in finished_horses: 
+                    finished_horses.append(h)
+                current_second_reports[h] = f"🏁 剛剛衝線了！(第 {finished_horses.index(h) + 1} 名)"
+            else:
+                current_second_reports[h] = action_text
                         
-        # 每 3 秒動態重新整合並編輯直播訊息
+        # 每 3 秒（或滿足結算條件時）更新畫面
         if now - last_refresh_time >= 3.0 or (len(finished_horses) >= 3) or (len(finished_horses) + len(dead_horses) == len(current_horses)):
             last_refresh_time = now
             dynamic_text = f"🐿️ **第 {race_id} 場賽事 現場直播** 🏁\n" + "‾" * 25 + "\n"
+            
+            # 軌道區保持固定跑道排位 (1~8號)
             for h in current_horses:
                 if horse_statuses[h]["dead_reason"] is not None:
                     dynamic_text += f"{h} ➡️ {horse_statuses[h]['dead_reason']}\n\n"
@@ -375,10 +382,27 @@ def run_race(chat_id):
                         status = " 🥇【冠軍】" if r==1 else " 🥈【亞軍】" if r==2 else " 🥉【季軍】"
                     dynamic_text += f"{h}{status}\n`{track_str}`\n\n"
             
-            # 如果有特殊事件（如死亡、發呆、吃芝士、衝線），才顯示提示面板
-            if action_reports:
-                dynamic_text += "—" * 15 + "\n"
-                dynamic_text += "📊 **【即時動態戰況提示】**\n" + "\n".join(action_reports)
+            # 按照「目前推進距離」由高到低重新排列
+            def sort_key(horse):
+                if horse in finished_horses:
+                    return (3, 100 - finished_horses.index(horse))
+                elif horse_statuses[horse]["dead_reason"] is not None:
+                    return (1, 0)
+                else:
+                    return (2, current_distance[horse])
+                    
+            sorted_horses_by_rank = sorted(current_horses, key=sort_key, reverse=True)
+            
+            # 組裝即時戰況提示文字
+            action_reports = []
+            for rank_num, h in enumerate(sorted_horses_by_rank, 1):
+                msg_status = current_second_reports.get(h, "未知")
+                leader_emoji = "👑 " if rank_num == 1 and h not in dead_horses else "   "
+                # 🛠️ 這裡直接在名字後面附加上中括號，即時顯示抽到的動態速度狀態！
+                action_reports.append(f"{leader_emoji}第 {rank_num} 名 {h} ➡️ `[{msg_status}]`")
+            
+            dynamic_text += "—" * 15 + "\n"
+            dynamic_text += "📊 **【即時動態戰況提示（依名次排列 ＆ 當前速度數據）】**\n" + "\n".join(action_reports)
             
             try: bot.edit_message_text(dynamic_text, chat_id, race_msg.message_id, parse_mode='Markdown')
             except: pass
@@ -586,7 +610,7 @@ def buy_horse(message):
     horse_info = get_user_horse(user_id)
 
     if horse_info["has_horse"] == 1:
-        bot.reply_to(message, f"Squirrel 您已擁有一隻愛鼠：**{horse_info['horse_name']}**", parse_mode='Markdown')
+        bot.reply_to(message, f"🐿️ 您已擁有一隻愛鼠：**{horse_info['horse_name']}**", parse_mode='Markdown')
         return
 
     cmd = message.text.split(maxsplit=1)
@@ -663,5 +687,5 @@ def help_cmd(message):
     bot.reply_to(message, text, parse_mode='HTML')
 
 # ================== 啟動服務 ==================
-print(f"🐿️ {BOT_USERNAME} 戰況精簡獨立隨機版已啟動！")
+print(f"🐿️ {BOT_USERNAME} 步伐與名次即時動態整合版已啟動！")
 bot.infinity_polling(timeout=20, long_polling_timeout=10)
