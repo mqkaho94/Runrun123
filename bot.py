@@ -28,7 +28,7 @@ RANK_EMOJIS = {
 
 # 🎭 20句全新無厘頭表面搞笑狀態
 FUN_SURFACE_STATUSES = [
-    # 🌟 特殊幸運 Buff 句（後台跑出好成績機率高少少，但仍可能第尾）
+    # 🌟 特殊幸運 Buff 句（隱藏高速機率為 60%，仍有 40% 機率跑第尾）
     "朋友最多轉圈哈姆共你🐹",
     "趕住返屋企瀨屎💩",
     "昨晚拜過黃大仙🙏獲得神祕力量加持",
@@ -267,21 +267,19 @@ def startrun(message):
     text += "【本局參賽鼠隻 ＆ 隨機排位表】\n"
     
     for h in current_horses:
-        # 🎨 先隨機抽取一句搞笑表面狀態
+        # 🎨 隨機抽取搞笑表面狀態
         surface_txt = random.choice(FUN_SURFACE_STATUSES)
 
-        # 🧠 核心邏輯修改：針對 3 個指定關鍵狀態給予「隱藏速度 Buff」
+        # 🧠 核心邏輯：微調指定 3 句的隱藏 Buff 機率（60% 高速 / 40% 中慢速）
         if surface_txt in ["朋友最多轉圈哈姆共你🐹", "趕住返屋企瀨屎💩", "昨晚拜過黃大仙🙏獲得神祕力量加持"]:
-            # 70% 機率直接給最高速區間，30% 機率落入中/慢速區間（所以依然有可能拿第尾！）
-            if random.random() < 0.70:
-                status_score = random.choice([9, 10])  # 高速
+            if random.random() < 0.60:
+                status_score = random.choice([9, 10])  # 60% 機率：高速（大勇）
             else:
-                status_score = random.randint(1, 8)   # 中慢速，有機率吊車尾
+                status_score = random.randint(1, 8)   # 40% 機率：普通或落後（有可能第尾）
         else:
-            # 其他 17 句維持完全正常的隨機概率
-            status_score = random.randint(1, 10)
+            status_score = random.randint(1, 10)      # 其他 17 句：維持完全均等隨機
 
-        # 🛠️ 根據後台決定的分數來給予實際的時間範圍數值
+        # 🛠️ 根據後台決定的分數給予實際的時間範圍
         if status_score >= 9:
             base_time_range = (25.0, 35.0)  
         elif status_score >= 4:
@@ -301,7 +299,6 @@ def startrun(message):
         place_odds = round(win_odds / 2, 1)
         race_odds[h] = win_odds  
         
-        # 賽前排位直接顯示狀態
         text += f"{h} 📢【{surface_txt}】\n   ➡️ 獨贏: *{win_odds}x* | 位置: *{place_odds}x*\n"
 
     text += "\n" + "—" * 20 + "\n"
@@ -432,7 +429,7 @@ def run_race(chat_id):
                 action_reports.append(f"🏃 [{rank_str}] {h} ➡️ `[{msg_status}]`")
             
             dynamic_text += "—" * 15 + "\n"
-            dynamic_text += "📊 **【即時動態戰況提示（固定排板位置）】**\n" + "\n".join(action_reports)
+            dynamic_text += "📊 **【即時動態戰況提示】**\n" + "\n".join(action_reports)
             
             try: bot.edit_message_text(dynamic_text, chat_id, race_msg.message_id, parse_mode='Markdown')
             except: pass
@@ -570,19 +567,35 @@ def place_bet(message):
         bet_type = cmd[0][1:]  
         chips = get_chips(user_id)
 
+        # 1. 處理不同投注種類的參數與計算
         if bet_type in ["win", "pla"]:
             if len(cmd) < 3: return
             horse_num = int(cmd[1])
             amount_str = cmd[2]
             if horse_num < 1 or horse_num > len(current_horses): return
             selected_horse_full = current_horses[horse_num-1]
+            
+            # 清理出純鼠名 (移除圖標與編號)
+            horse_name_clean = selected_horse_full.split('.', 1)[1] if '.' in selected_horse_full else selected_horse_full
+            horse_display = f"（{horse_num}號）（{horse_name_clean}）"
+            
+            # 計算單純賠率與預期總獎金
+            odds_val = race_odds[selected_horse_full] if bet_type == "win" else round(race_odds[selected_horse_full] / 2, 1)
+
         elif bet_type == "ww":
             if len(cmd) < 4: return
             h1, h2 = int(cmd[1]), int(cmd[2])
             amount_str = cmd[3]
             if h1 == h2 or min(h1, h2) < 1 or max(h1, h2) > len(current_horses): return
             selected_horse_full = [current_horses[h1-1], current_horses[h2-1]]
+            
+            h1_clean = selected_horse_full[0].split('.', 1)[1] if '.' in selected_horse_full[0] else selected_horse_full[0]
+            h2_clean = selected_horse_full[1].split('.', 1)[1] if '.' in selected_horse_full[1] else selected_horse_full[1]
+            horse_display = f"（{h1},{h2}號）（{h1_clean} & {h2_clean}）"
+            
+            odds_val = round(race_odds[selected_horse_full[0]] * race_odds[selected_horse_full[1]], 1)
 
+        # 2. 計算籌碼金額與福利金補貼扣款
         bet_amount = int(chips * int(amount_str.replace("%", "")) / 100) if "%" in amount_str else int(amount_str)
         if bet_amount <= 0: return
 
@@ -590,6 +603,7 @@ def place_bet(message):
         actual_deduct = max(0, bet_amount - credit)
         if actual_deduct > chips: return
 
+        # 3. 實際執行帳戶扣款與紀錄
         update_chips(user_id, -actual_deduct)
         user_actual_deduct[user_id] = actual_deduct 
         user_bet_count[user_id] = 1
@@ -597,18 +611,18 @@ def place_bet(message):
         if user_id not in race_bets[race_id]: race_bets[race_id][user_id] = []
         race_bets[race_id][user_id].append((bet_type, selected_horse_full, bet_amount))
 
+        # 4. 翻譯投注抬頭
         type_title = "獨贏" if bet_type == "win" else "位置" if bet_type == "pla" else "連贏"
-        if bet_type == "ww":
-            h1_clean = selected_horse_full[0].split('.', 1)[1] if '.' in selected_horse_full[0] else selected_horse_full[0]
-            h2_clean = selected_horse_full[1].split('.', 1)[1] if '.' in selected_horse_full[1] else selected_horse_full[1]
-            horse_display = f"{cmd[1]},{cmd[2]} 號 {h1_clean}&{h2_clean}"
-            odds_val = round(race_odds[selected_horse_full[0]] * race_odds[selected_horse_full[1]], 1)
-        else:
-            horse_name_clean = selected_horse_full.split('.', 1)[1] if '.' in selected_horse_full else selected_horse_full
-            horse_display = f"{horse_num} 號 {horse_name_clean}"
-            odds_val = race_odds[selected_horse_full] if bet_type == "win" else round(race_odds[selected_horse_full] / 2, 1)
+        
+        # 5. 計算總共可收金額 (本金 * 賠率)
+        potential_win = int(bet_amount * odds_val)
 
-        success_msg = f"✅ **{type_title}投注成功！{horse_display}**\n**投注額：{bet_amount:,} 金幣**\n**賠率：{odds_val} 倍**"
+        # ✨ 嚴格遵循玩家指定的回覆格式
+        success_msg = f"（{type_title}）成功 🎊 {horse_display}\n" \
+                      f"投注幾錢：{bet_amount:,} 金幣\n" \
+                      f"幾多倍：{odds_val} 倍\n" \
+                      f"贏出總數可以收幾多：{potential_win:,} 金幣"
+                      
         bot.reply_to(message, success_msg, parse_mode='Markdown')
     except:
         bot.reply_to(message, error_help_text, parse_mode='Markdown')
@@ -625,6 +639,28 @@ def refund_bet(message):
     user_bet_count[user_id] = 0
     user_refund_count[user_id] = 1
     bot.reply_to(message, f"✅ 退款成功！實退錢包金額：`{refund_amount:,}` 金幣", parse_mode='Markdown')
+
+# ================== 🤖 每日福利指令 (限制每日一次) ==================
+@bot.message_handler(commands=['daily'])
+def daily(message):
+    user_id = message.from_user.id
+    sync_username(user_id, message.from_user.username)
+    today = date.today().isoformat()  
+    
+    with sqlite3.connect(DB_FILE) as conn:
+        c = conn.cursor()
+        c.execute("SELECT last_daily FROM users WHERE user_id=?", (user_id,))
+        last = c.fetchone()
+        
+        if last and last[0] == today:
+            bot.reply_to(message, "❌ 你今天已經領過每日獎勵！明天再來吧。")
+            return
+            
+        c.execute("UPDATE users SET last_daily=? WHERE user_id=?", (today, user_id))
+        conn.commit()
+        
+    update_chips(user_id, 3000)
+    bot.reply_to(message, "✅ **每日簽到成功！** +3000 金幣 💰")
 
 # ================== 🤖 其他功能指令 ==================
 @bot.message_handler(commands=['buy'])
@@ -678,23 +714,6 @@ def money(message):
     chips = get_chips(message.from_user.id)
     bot.reply_to(message, f"💰 你的餘額：**{chips:,}** 金幣", parse_mode='Markdown')
 
-@bot.message_handler(commands=['daily'])
-def daily(message):
-    user_id = message.from_user.id
-    sync_username(user_id, message.from_user.username)
-    today = date.today().isoformat()
-    with sqlite3.connect(DB_FILE) as conn:
-        c = conn.cursor()
-        c.execute("SELECT last_daily FROM users WHERE user_id=?", (user_id,))
-        last = c.fetchone()
-        if last and last[0] == today:
-            bot.reply_to(message, "❌ 你今天已經領過每日獎勵！")
-            return
-        c.execute("UPDATE users SET last_daily=? WHERE user_id=?", (today, user_id))
-        conn.commit()
-    update_chips(user_id, 3000)
-    bot.reply_to(message, "✅ **每日簽到成功！** +3000 金幣 💰")
-
 @bot.message_handler(commands=['start'])
 def start(message):
     sync_username(message.from_user.id, message.from_user.username)
@@ -706,6 +725,7 @@ def help_cmd(message):
 /startrun - 開始新賽事
 /money   - 查詢目前金幣
 /refund    - 開賽前退款當局投注
+/daily     - 領取每日福利 (+3000 金幣，每日限一次)
 /pay - <b>【回覆訊息】</b>轉讓金幣
 /buy       - <b>【私訊】</b>購買專屬鼠隻 ({HORSE_PRICE:,} 金幣)
 /rename    - <b>【私訊】</b>自訂愛鼠修改名字
@@ -715,5 +735,5 @@ def help_cmd(message):
     bot.reply_to(message, text, parse_mode='HTML')
 
 # ================== 啟動服務 ==================
-print(f"🐿️ {BOT_USERNAME} 隱藏Buff修正版已成功啟動！")
+print(f"🐿️ {BOT_USERNAME} 投注格式更新版已成功啟動！")
 bot.infinity_polling(timeout=20, long_polling_timeout=10)
