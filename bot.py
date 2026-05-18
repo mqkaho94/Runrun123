@@ -369,7 +369,7 @@ def run_race(chat_id):
                 horse_statuses[h]["freeze_steps"] -= 1 
                 continue 
             
-            if random.random() < 0.015:
+            if random.random() < 0.005:
                 freeze_sec = random.randint(3, 5) 
                 freeze_type = random.choice(["發呆停止步行 💤", "地上撿到芝士吃兩口 🧀"])
                 horse_statuses[h]["freeze_steps"] = freeze_sec
