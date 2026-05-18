@@ -140,7 +140,7 @@ def pay_chips(message):
                     to_user_id = row[0]
                     to_username = row[1] if row[1] else target_username
                 else:
-                    bot.reply_to(message, f"❌ **轉帳失敗**：找不到玩家 `@{target_username}`。\n\n💡 *提示*：目標玩家必須在群組輸入過機器人指令（如 /balance），系統才能成功建立他的名字檔案喔！", parse_mode='Markdown')
+                    bot.reply_to(message, f"❌ **轉帳失敗**：找不到玩家 `@{target_username}`。\n\n💡 *提示*：目標玩家必須在群組輸入過機器人指令（如 /money），系統才能成功建立他的名字檔案喔！", parse_mode='Markdown')
                     return
 
         elif message.reply_to_message:
@@ -611,8 +611,8 @@ def rename_horse(message):
         conn.commit()
     bot.reply_to(message, f"✨ 您的愛駒已成功更名為：**「{new_name}」** 🏇")
 
-@bot.message_handler(commands=['balance'])
-def balance(message):
+@bot.message_handler(commands=['money'])
+def money(message):
     sync_username(message.from_user.id, message.from_user.username)
     chips = get_chips(message.from_user.id)
     bot.reply_to(message, f"💰 你的餘額：**{chips:,}** 金幣", parse_mode='Markdown')
@@ -643,7 +643,7 @@ def start(message):
 def help_cmd(message):
     text = f"""🏇 **指令列表**
 /startrun - 開始新賽事
-/balance   - 查詢目前金幣
+/money   - 查詢目前金幣
 /refund    - 開賽前退款當局投注
 /pay - <b>【回覆訊息 或 標記@Username】</b>轉讓金幣
 /buy       - <b>【私訊】</b>購買專屬馬匹 ({HORSE_PRICE:,} 金幣)
