@@ -202,8 +202,8 @@ def pay_chips(message):
         bot.reply_to(message, "❌ 轉帳系統發生未知錯誤。")
 
 # ================== 🎰 核心：開局與排位 ==================
-@bot.message_handler(commands=['startrace'])
-def startrace(message):
+@bot.message_handler(commands=['startrun'])
+def startrun(message):
     global current_race, race_id, race_odds, user_bet_count, user_refund_count, user_actual_deduct, current_horses
     if current_race:
         bot.reply_to(message, "⚠️ 已有賽事進行中！")
@@ -642,7 +642,7 @@ def start(message):
 @bot.message_handler(commands=['help'])
 def help_cmd(message):
     text = f"""🏇 **指令列表**
-/startrace - 開始新賽事
+/startrun - 開始新賽事
 /balance   - 查詢目前金幣
 /refund    - 開賽前退款當局投注
 /pay - <b>【回覆訊息 或 標記@Username】</b>轉讓金幣
