@@ -18,8 +18,8 @@ KEY = "sb_publishable_9Rz13pc2u_V-UeRnm8XQFQ_BHtAi5fw"
 supabase: Client = create_client(URL, KEY)
 
 # ⚠️ 設定你的 Bot 憑證與用戶名
-TOKEN = "8447034432:AAFOW7PmFbBaY3p70dKAchGCUqKlH_ii9XI"
-BOT_USERNAME = "@Gapjaibot"
+TOKEN = "7742431712:AAHBx-YjOKHNK6Pq_bDkj7nOOnxEejE_Xo8"
+BOT_USERNAME = "@Run1234567bot"
 
 # 🚀 啟用多線程 ThreadPool
 bot = telebot.TeleBot(TOKEN, threaded=True, num_threads=4)
