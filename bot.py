@@ -5,16 +5,8 @@ import time
 import threading
 import sqlite3
 import os
+import json
 from datetime import date
-import os
-from telegram import Update
-from telegram.ext import Application, CommandHandler, ContextTypes
-from supabase import create_client, Client
-
-# 1. 讀取 Railway 嘅環境變數連去 Supabase
-URL = "wkshjxxiaegimxpouqry"
-KEY = "sb_publishable_9Rz13pc2u_V-UeRnm8XQFQ_BHtAi5fw"
-supabase: Client = create_client(URL, KEY)
 
 # ⚠️ 設定你的 Bot 憑證與用戶名
 TOKEN = "7742431712:AAHBx-YjOKHNK6Pq_bDkj7nOOnxEejE_Xo8"
