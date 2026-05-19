@@ -7,7 +7,7 @@ import sqlite3
 import os
 import json
 from datetime import date
-mport os
+import os
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
 from supabase import create_client, Client
