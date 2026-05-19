@@ -322,6 +322,10 @@ def startrun(message):
     cycle_index = total_races % 10
     if cycle_index == 0: cycle_index = 10
     
+    # 🔄 【核心隨機修正】如果是新週期的第一場，立刻重新洗牌生成全新隨機的保底場次計畫
+    if cycle_index == 1:
+        refresh_guarantee_plan()
+    
     race_id = f"R{int(time.time())}"
     race_bets[race_id] = {}
     race_odds = {}
@@ -432,13 +436,10 @@ def startrun(message):
         actual_guarantee_count = min(guarantee_count, len(detected_cold_horses))
         guaranteed_cold_horses = random.sample(detected_cold_horses, actual_guarantee_count)
 
+    # 🔧 【外觀隱藏修正】排位表不再顯示任何與暗號保底局相關的提示字眼，統一顯示一般週期進度
     text = f"賽鼠 **【賽鼠會 - 第 {total_races} 場】** 🐿️\n🏆 本場盃賽：【鼠王爭霸戰】\n"
-    if is_guarantee_round:
-        text += f"✨ _本場為本週期第 {cycle_index} 場暗號保底局_\n\n"
-    else:
-        text += f"📊 週期進度：第 {cycle_index}/10 場\n\n"
+    text += f"📊 週期進度：第 {cycle_index}/10 場\n\n"
     
-    # 🎲 事前抽出 8 個不重複嘅隨機動物 Emoji 供本場排位表使用
     round_animal_emojis = random.sample(RANDOM_ANIMAL_EMOJIS, 8)
 
     for idx, h in enumerate(current_horses):
@@ -488,10 +489,8 @@ def startrun(message):
         name_part = h.split('.', 1)[1]
         
         luck_tag = " 🍀[好運加成]" if active_horse_luck.get(h) == "good" else " 💀[歹運纏身]" if active_horse_luck.get(h) == "bad" else ""
-        if h in guaranteed_cold_horses:
-            luck_tag += " ✨[暗影爆發]"
-
-        # 🔧 核心修改：原本嘅 🎪 直接換成隨機動物 Emoji
+        
+        # 🔧 【外觀隱藏修正】暗影爆發的標籤只在後台運作，不再加進前端的排位文字中
         animal_emoji = round_animal_emojis[idx]
         text += f"{lane_num} {name_part}{icon}{luck_tag} {animal_emoji} {surface_txt}\n"
         text += f"    {class_icon} 獨贏: {win_odds}倍 | 位置: {place_odds}倍\n"
@@ -504,9 +503,6 @@ def startrun(message):
         time.sleep(1)
 
     bot.reply_to(message, text, parse_mode='Markdown')
-    
-    if cycle_index == 10:
-        refresh_guarantee_plan()
 
     threading.Timer(60, lambda: run_race(message.chat.id)).start()
 
@@ -1032,5 +1028,5 @@ def help_cmd(message):
     bot.reply_to(message, text, parse_mode='HTML')
 
 # ================== 啟動服務 ==================
-print(f"🐿️ {BOT_USERNAME} 【最新冷門保底隨機數量版】啟動！")
+print(f"🐿️ {BOT_USERNAME} 【整合修正版】啟動！")
 bot.infinity_polling(timeout=20, long_polling_timeout=10)
