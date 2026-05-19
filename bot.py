@@ -5,7 +5,6 @@ import time
 import threading
 import sqlite3
 import os
-import json
 from datetime import date
 import os
 from telegram import Update
