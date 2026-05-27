@@ -1,0 +1,17 @@
+# 1. 忽略 Python 自動產生的暫存檔
+__pycache__/
+*.pyc
+
+# 2. 忽略本機測試用的虛擬環境（如果你有建的話）
+venv/
+.venv/
+
+# 3. 【最重要】忽略你的本機資料檔
+# 這樣你本地測試產生的資料，才不會推上 GitHub 去覆蓋 Railway Volume 裡的資料
+user_data.json
+*.db
+*.sqlite3
+data/
+
+# 4. 忽略本機的環境變數設定檔（內含你的 Bot Token 敏感資訊）
+.env
