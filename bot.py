@@ -9,7 +9,7 @@ import json
 from datetime import date
 
 # ⚠️ 設定你的 Bot 憑證與用戶名
-TOKEN = "7742431712:AAHBx-YjOKHNK6Pq_bDkj7nOOnxEejE_Xo8"
+TOKEN = "7742431712:AAH_VAzCzuLG90OZEra1gY4oNmjAIv_qC_g"
 BOT_USERNAME = "@Run1234567bot"
 
 # 🚀 啟用多線程 ThreadPool
