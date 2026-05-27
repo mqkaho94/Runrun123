@@ -8,6 +8,46 @@ import os
 import json
 from datetime import date
 
+# 定義 Volume 的掛載路徑
+# 確保這個路徑與你在 Railway 後台設定的 Mount Path 完全一致
+DATA_DIR = "/app/data"
+DATA_FILE = os.path.join(DATA_DIR, "user_data.json")
+
+# 確保資料夾存在（如果 Railway 還沒建立，程式會自動建）
+if not os.path.exists(DATA_DIR):
+    os.makedirs(DATA_DIR)
+
+
+# 讀取資料的函式
+def load_data():
+    if os.path.exists(DATA_FILE):
+        with open(DATA_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return {}  # 如果檔案不存在，回傳空字典
+
+
+# 儲存資料的函式
+def save_data(data):
+    with open(DATA_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=4)
+
+
+# --- 你的 Telebot 邏輯舉例 ---
+@bot.message_handler(commands=["start"])
+def send_welcome(message):
+    user_id = str(message.from_user.id)
+
+    # 1. 讀取現有資料
+    current_data = load_data()
+
+    # 2. 更新資料（例如記錄使用者進來過）
+    current_data[user_id] = {"joined": True, "username": message.from_user.username}
+
+    # 3. 儲存回 Volume
+    save_data(current_data)
+
+    bot.reply_to(message, "資料已安全存入 Volume，重啟也不會消失！")
+
 # ⚠️ 設定你的 Bot 憑證與用戶名
 TOKEN = "7742431712:AAH_VAzCzuLG90OZEra1gY4oNmjAIv_qC_g"
 BOT_USERNAME = "@Run1234567bot"
